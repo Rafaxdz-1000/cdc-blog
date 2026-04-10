@@ -1,0 +1,86 @@
+name: Deploy Blog → Hostinger
+
+on:
+  repository_dispatch:
+    types: [deploy-blog]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Download blog-deploy.zip from VPS
+        run: |
+          sshpass -p "${{ secrets.VPS_PASSWORD }}"             scp -o StrictHostKeyChecking=no             root@${{ secrets.VPS_HOST }}:/opt/blog/blog-deploy.zip             ./blog-deploy.zip
+          echo "ZIP size: $(wc -c < blog-deploy.zip) bytes"
+
+      - name: Deploy to Hostinger via TUS
+        env:
+          HOSTINGER_TOKEN: ${{ secrets.HOSTINGER_TOKEN }}
+        run: |
+          python3 << 'PYEOF'
+          import requests, os, sys
+
+          tok = os.environ["HOSTINGER_TOKEN"]
+          zip_path = "blog-deploy.zip"
+          domain   = "blog.clubedoscisnes.com"
+          username = "u759662497"
+          base_url = "https://api.hostinger.com"
+          hdrs_auth = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
+
+          # Step 1 — upload credentials
+          r = requests.post(f"{base_url}/api/hosting/v1/files/upload-urls",
+              headers=hdrs_auth, json={"username": username, "domain": domain}, timeout=30)
+          if r.status_code != 200:
+              print("upload-urls failed:", r.status_code, r.text[:300])
+              sys.exit(1)
+          creds = r.json()
+          upload_url    = creds.get("url") or creds.get("data", {}).get("url", "")
+          auth_key      = creds.get("auth_key") or creds.get("data", {}).get("auth_key", "")
+          rest_auth_key = creds.get("rest_auth_key") or creds.get("data", {}).get("rest_auth_key", "")
+          print("Credentials OK, upload_url:", upload_url[:60])
+
+          file_size  = os.path.getsize(zip_path)
+          filename   = "blog-deploy.zip"
+          target_url = f"{upload_url.rstrip('/')}/{filename}?override=true"
+          up_hdrs    = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
+                        "upload-length": str(file_size), "upload-offset": "0"}
+
+          # Step 2 — pre-create slot
+          r2 = requests.post(target_url, headers=up_hdrs, data=b"", timeout=30)
+          if r2.status_code != 201:
+              print("Slot failed:", r2.status_code, r2.text[:100])
+              sys.exit(1)
+          print("Upload slot created (201)")
+
+          # Step 3 — TUS PATCH
+          with open(zip_path, "rb") as f:
+              file_data = f.read()
+          patch_hdrs = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
+                        "Content-Type": "application/offset+octet-stream",
+                        "Upload-Offset": "0", "Tus-Resumable": "1.0.0",
+                        "upload-length": str(file_size)}
+          r3 = requests.patch(target_url, headers=patch_hdrs, data=file_data, timeout=120)
+          if r3.status_code not in (200, 204):
+              print("TUS PATCH failed:", r3.status_code, r3.text[:100])
+              sys.exit(1)
+          print("Upload complete (", r3.status_code, ")")
+
+          # Step 4 — trigger deploy
+          r4 = requests.post(
+              f"{base_url}/api/hosting/v1/accounts/{username}/websites/{domain}/deploy",
+              headers=hdrs_auth, json={"archive_path": filename}, timeout=60)
+          if r4.status_code not in (200, 201, 202):
+              print("Deploy trigger failed:", r4.status_code, r4.text[:200])
+              sys.exit(1)
+          print("Deploy triggered successfully:", r4.json())
+          PYEOF
+
+      - name: Clear pending flag on VPS
+        if: success()
+        run: |
+          sshpass -p "${{ secrets.VPS_PASSWORD }}"             ssh -o StrictHostKeyChecking=no             root@${{ secrets.VPS_HOST }}             "rm -f /opt/blog/.pending-deploy && echo flag_cleared"
