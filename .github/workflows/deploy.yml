@@ -3,6 +3,7 @@ name: Deploy Blog → Hostinger
 on:
   repository_dispatch:
     types: [deploy-blog]
+  workflow_dispatch:
 
 jobs:
   deploy:
