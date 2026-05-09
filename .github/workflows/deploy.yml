@@ -25,7 +25,7 @@ jobs:
             ./blog-deploy.zip
           echo "ZIP size: $(wc -c < blog-deploy.zip) bytes"
 
-      - name: Patch blog (logo, search, categories, popup, social links)
+      - name: Patch blog (logo, search, categories, popup, social links, read-time)
         run: |
           python3 << 'PYEOF'
           import zipfile, os, re, shutil
@@ -246,6 +246,10 @@ jobs:
               )
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
+
+          # ── 9. Fix read_time display ("X" → "X min") in listing cards ────────
+          html = re.sub(r'(mt-1\.5 font-mono">)(\d+)(</p>)', r'\1\2 min\3', html)
+          changes.append('read-time-min')
 
           # ── Write patched HTML ────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
