@@ -1,0 +1,44 @@
+name: Fix Blog Read Time Display
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-read-time.yml']
+  workflow_dispatch:
+
+jobs:
+  fix-vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+
+      - name: Write fix script locally
+        run: |
+          cat > /tmp/fix_read_time.py << 'PYEOF'
+          import re
+          path = '/opt/blog/index.html'
+          with open(path, encoding='utf-8') as f:
+              h = f.read()
+          before = len(re.findall(r'mt-1\.5 font-mono">\d+</p>', h))
+          h2 = re.sub(r'(mt-1\.5 font-mono">)(\d+)(</p>)', r'\1\2 min\3', h)
+          with open(path, 'w', encoding='utf-8') as f:
+              f.write(h2)
+          after = len(re.findall(r'mt-1\.5 font-mono">\d+ min</p>', h2))
+          print(f'Fixed: {before} bare numbers -> {after} now show "X min"')
+          PYEOF
+
+      - name: Copy script to VPS
+        run: |
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            scp -o StrictHostKeyChecking=no \
+            /tmp/fix_read_time.py \
+            root@${{ secrets.VPS_HOST }}:/tmp/fix_read_time.py
+
+      - name: Run fix on VPS and clean up
+        run: |
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no root@${{ secrets.VPS_HOST }} \
+            "python3 /tmp/fix_read_time.py && rm /tmp/fix_read_time.py"
