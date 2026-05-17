@@ -115,7 +115,7 @@ jobs:
                   rest = html[abs_start:]
                   depth = 0
                   end_off = None
-                  for tm in re.finditer(r'<(/?)' + tag_name + r'[\s>]', rest, re.IGNORECASE):
+                  for tm in re.finditer(r'<(/?)'  + tag_name + r'[\s>]', rest, re.IGNORECASE):
                       if tm.group(1) == '/':
                           depth -= 1
                       else:
@@ -247,9 +247,10 @@ jobs:
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display ("X" → "X min de leitura") ──────────────
+          # ── 9. Fix read_time display ("X" → "X min de leitura") ─────────────
+          # FIX: regex now matches any extra classes (e.g. font-mono) after text-[11px]
           html = re.sub(
-              r'(text-neutral-600 text-\[11px\]">)(\d+)(</span>)',
+              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+)(</span>)',
               r'\1\2 min de leitura\3',
               html
           )
@@ -309,7 +310,7 @@ jobs:
                           f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
                           f'<h3 class="font-syne font-bold text-white text-sm leading-snug mb-2 group-hover:text-blue-300 transition-colors">{t}</h3>'
                           f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-3">{d}</p>'
-                          f'<span class="text-neutral-700 text-[10px] font-mono">{rt} min &bull; {cat}</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
                           f'</div><div class="shrink-0 w-[90px] h-[70px] sm:w-[110px] sm:h-[80px] overflow-hidden">'
                           f'<img alt="{t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"'
                           f' loading="lazy" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
@@ -343,7 +344,7 @@ jobs:
                           f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
                           f'<h3 class="font-syne font-semibold text-white text-sm leading-snug mb-1.5 group-hover:text-blue-300 transition-colors line-clamp-2">{t}</h3>'
                           f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-2">{d}</p>'
-                          f'<span class="text-neutral-700 text-[10px] font-mono">{rt} min &bull; {cat}</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
                           f'</a>')
 
               def _ml(a, n):
