@@ -25,7 +25,7 @@ jobs:
             ./blog-deploy.zip
           echo "ZIP size: $(wc -c < blog-deploy.zip) bytes"
 
-      - name: Patch blog (logo, search, categories, popup, social links, read-time)
+      - name: Patch blog (logo, search, categories, popup, social links, read-time, adsense)
         run: |
           python3 << 'PYEOF'
           import zipfile, os, re, shutil
@@ -254,6 +254,15 @@ jobs:
               html
           )
           changes.append('read-time-min-de-leitura')
+
+          # ── 10. Inject Google AdSense global tag ─────────────────────────────
+          adsense_tag = (
+              '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
+              '?client=ca-pub-4015828754517117" crossorigin="anonymous"></script>'
+          )
+          if adsense_tag not in html:
+              html = html.replace('</head>', adsense_tag + '\n</head>', 1)
+              changes.append('adsense-global-tag')
 
           # ── Write patched HTML ────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
