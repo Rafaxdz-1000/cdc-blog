@@ -30,7 +30,7 @@ jobs:
           python3 << 'PYEOF'
           import zipfile, os, re, shutil, json as _json
 
-          # ── Extract ──────────────────────────────────────────────────────────
+          # ── Extract ────────────────────────────────────────────────────────────────────
           with zipfile.ZipFile('blog-deploy.zip', 'r') as z:
               z.extractall('extracted')
           print('Extracted files:')
@@ -53,14 +53,14 @@ jobs:
 
           changes = []
 
-          # ── 1. Favicon ───────────────────────────────────────────────────────
+          # ── 1. Favicon ────────────────────────────────────────────────────────────────────
           if 'favicon.ico' not in html:
               fav = ('<link rel="icon" href="/assets/images/favicon.ico" type="image/x-icon">\n'
                      '<link rel="shortcut icon" href="/assets/images/favicon.ico" type="image/x-icon">\n')
               html = html.replace('</head>', fav + '</head>', 1)
               changes.append('favicon')
 
-          # ── 2. Extra CSS ─────────────────────────────────────────────────────
+          # ── 2. Extra CSS ────────────────────────────────────────────────────────────────────
           if 'cdc-patch-css' not in html:
               css = ("<style id=\"cdc-patch-css\">\n"
                      ".cat-tab{font-family:'Syne',sans-serif;font-size:.65rem;font-weight:700;"
@@ -84,7 +84,7 @@ jobs:
               html = html.replace('</head>', css + '\n</head>', 1)
               changes.append('extra-css')
 
-          # ── 3. Logo: text → image ────────────────────────────────────────────
+          # ── 3. Logo: text → image ─────────────────────────────────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
                   r'(<a\b[^>]*href=["\']https?://(?:www\.)?clubedoscisnes\.com/?["\'][^>]*>)'
@@ -101,7 +101,7 @@ jobs:
                   html = html[:m.start()] + repl + html[m.end():]
                   changes.append('logo-image')
 
-          # ── 4. Remove EM ALTA trending bar ───────────────────────────────────
+          # ── 4. Remove EM ALTA trending bar ───────────────────────────────────────────────────────────────────
           if 'EM ALTA' in html:
               pos = html.find('EM ALTA')
               before = html[max(0, pos - 800):pos]
@@ -131,14 +131,14 @@ jobs:
                   html = re.sub(r'[^\n]*EM ALTA[^\n]*\n?', '', html)
                   changes.append('removed-em-alta-line')
 
-          # ── 5. Fix social links ──────────────────────────────────────────────
+          # ── 5. Fix social links ─────────────────────────────────────────────────────────────────────────
           html = html.replace('instagram.com/rafaelwillians_cdc', 'instagram.com/clubedoscisnes_')
           html = html.replace('youtube.com/@rafaelwillians_cdc',
                               'youtube.com/channel/UCFEv58QJTZ0kWbNtU4YFqBg')
           html = html.replace('@rafaelwillians_cdc', '@clubedoscisnes_')
           changes.append('social-links')
 
-          # ── 6. Tag articles with data-category ──────────────────────────────
+          # ── 6. Tag articles with data-category ──────────────────────────────────────────────────────────────────
           BMAP = {
               'badge-ia': 'ia', 'badge-marketing': 'marketing',
               'badge-automacao': 'automacao', 'badge-cases': 'cases',
@@ -166,7 +166,7 @@ jobs:
           html = re.sub(r'<article\b.*?</article>', tag_art, html, flags=re.DOTALL | re.IGNORECASE)
           changes.append('data-category')
 
-          # ── 7. Search bar + category tabs before first article ───────────────
+          # ── 7. Search bar + category tabs before first article ───────────────────────────────────────────────
           if 'cdc-search' not in html:
               tabs = (
                   '<!-- CDC Patch: search + tabs -->'
@@ -200,7 +200,7 @@ jobs:
                   html = html[:fa] + tabs + html[fa:]
               changes.append('search-tabs')
 
-          # ── 8. JS + popup before </body> ─────────────────────────────────────
+          # ── 8. JS + popup before </body> ───────────────────────────────────────────────────────────────────────
           if 'cdc-filter-popup' not in html:
               js = (
                   '<script id="cdc-filter-popup">(function(){'
@@ -247,7 +247,7 @@ jobs:
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display → "X minutos de leitura" everywhere ─────
+          # ── 9. Fix read_time display → "X minutos de leitura" everywhere ─────────────────────────
           # Pattern 1: bare digit  >4<
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+)(</span>)',
@@ -274,7 +274,7 @@ jobs:
           )
           changes.append('read-time-minutos-de-leitura')
 
-          # ── 10. Inject Google AdSense global tag ─────────────────────────────
+          # ── 10. Inject Google AdSense global tag ────────────────────────────────────────────────────────────────
           adsense_tag = (
               '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
               '?client=ca-pub-4015828754517117" crossorigin="anonymous"></script>'
@@ -309,7 +309,7 @@ jobs:
                   _am['category'] = _bm.group(2).strip()
               else:
                   _am['badge_class'] = 'badge-ia'; _am['category'] = 'IA'
-              # Extract read_time from article: try "X minutos de leitura" first, then "X min"
+              # Extract read_time: try "X minutos de leitura" first, then "X min"
               _rtm = re.search(r'(\d+)\s*minutos\s*de\s*leitura', _ah)
               if not _rtm:
                   _rtm = re.search(r'(\d+)\s*min', _ah)
@@ -417,24 +417,14 @@ jobs:
           else:
               print('Skipping dynamic rebuild: need 8+ articles, found {}'.format(len(_art_metas)))
 
-          # ── Write patched HTML ────────────────────────────────────────────────
+          # ── Write patched HTML ───────────────────────────────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
           print('Patches applied:', ', '.join(changes))
-
-          # ── Repack ZIP ────────────────────────────────────────────────────────
-          os.remove('blog-deploy.zip')
-          with zipfile.ZipFile('blog-deploy.zip', 'w', zipfile.ZIP_DEFLATED) as z:
-              for root, dirs, files in os.walk('extracted'):
-                  for fname in files:
-                      fp = os.path.join(root, fname)
-                      arc = os.path.relpath(fp, 'extracted')
-                      z.write(fp, arc)
-          shutil.rmtree('extracted')
-          print('ZIP repacked. Size:', os.path.getsize('blog-deploy.zip'), 'bytes')
+          print('index.html size:', os.path.getsize(idx_path), 'bytes')
           PYEOF
 
-      - name: Deploy to Hostinger via TUS
+      - name: Upload patched files directly to Hostinger via TUS
         env:
           HOSTINGER_TOKEN: ${{ secrets.HOSTINGER_TOKEN }}
         run: |
@@ -442,13 +432,12 @@ jobs:
           import requests, os, sys, time
 
           tok = os.environ["HOSTINGER_TOKEN"]
-          zip_path = "blog-deploy.zip"
           domain   = "blog.clubedoscisnes.com"
           username = "u759662497"
           base_url = "https://developers.hostinger.com"
           hdrs_auth = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
 
-          # Step 1 — upload credentials
+          # Step 1 — get TUS upload credentials
           r = requests.post(f"{base_url}/api/hosting/v1/files/upload-urls",
               headers=hdrs_auth, json={"username": username, "domain": domain}, timeout=30)
           if r.status_code != 200:
@@ -458,51 +447,56 @@ jobs:
           upload_url    = creds.get("url") or creds.get("data", {}).get("url", "")
           auth_key      = creds.get("auth_key") or creds.get("data", {}).get("auth_key", "")
           rest_auth_key = creds.get("rest_auth_key") or creds.get("data", {}).get("rest_auth_key", "")
-          print("Credentials OK, upload_url:", upload_url)
+          print("upload_url:", upload_url)
+          # upload_url ends with /public_html — files go directly into the website root
 
-          file_size  = os.path.getsize(zip_path)
-          filename   = "blog-deploy.zip"
-          target_url = f"{upload_url.rstrip('/')}/{filename}?override=true"
-          # archive_path must match where TUS stores the file:
-          # upload_url ends with /public_html, so file lands at public_html/blog-deploy.zip
-          archive_path = f"public_html/{filename}"
-          print(f"Uploading {file_size} bytes → {target_url}")
-          print(f"Will deploy with archive_path: {archive_path}")
+          def tus_upload(local_path, remote_path):
+              """Upload local_path to public_html/remote_path on Hostinger via TUS.
+              No deploy API needed — file is immediately live."""
+              size = os.path.getsize(local_path)
+              # Append remote_path to the TUS base URL (which ends with /public_html)
+              target = f"{upload_url.rstrip('/')}/{remote_path}?override=true"
+              hdrs = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
+                      "upload-length": str(size), "upload-offset": "0"}
 
-          up_hdrs    = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
-                        "upload-length": str(file_size), "upload-offset": "0"}
+              # Create upload slot (TUS POST)
+              r2 = requests.post(target, headers=hdrs, data=b"", timeout=30)
+              if r2.status_code != 201:
+                  print(f"  Slot failed for {remote_path}: {r2.status_code} {r2.text[:200]}")
+                  return False
 
-          # Step 2 — pre-create slot
-          r2 = requests.post(target_url, headers=up_hdrs, data=b"", timeout=30)
-          if r2.status_code != 201:
-              print("Slot failed:", r2.status_code, r2.text[:200])
+              # Upload file data (TUS PATCH)
+              with open(local_path, "rb") as f:
+                  data = f.read()
+              patch_hdrs = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
+                            "Content-Type": "application/offset+octet-stream",
+                            "Upload-Offset": "0", "Tus-Resumable": "1.0.0",
+                            "upload-length": str(size)}
+              r3 = requests.patch(target, headers=patch_hdrs, data=data, timeout=120)
+              if r3.status_code not in (200, 204):
+                  print(f"  PATCH failed for {remote_path}: {r3.status_code} {r3.text[:200]}")
+                  return False
+              print(f"  OK {remote_path} ({size:,} bytes, HTTP {r3.status_code})")
+              return True
+
+          # Files to upload: (local path, destination relative to public_html/)
+          uploads = [("extracted/index.html", "index.html")]
+          if os.path.exists("extracted/assets/diagnostico-popup.js"):
+              uploads.append(("extracted/assets/diagnostico-popup.js", "assets/diagnostico-popup.js"))
+
+          all_ok = True
+          for local, remote in uploads:
+              print(f"Uploading {local} -> public_html/{remote}")
+              if not tus_upload(local, remote):
+                  all_ok = False
+
+          if not all_ok:
+              print("ERROR: one or more uploads failed")
               sys.exit(1)
-          print("Upload slot created (201)")
 
-          # Step 3 — TUS PATCH
-          with open(zip_path, "rb") as f:
-              file_data = f.read()
-          patch_hdrs = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
-                        "Content-Type": "application/offset+octet-stream",
-                        "Upload-Offset": "0", "Tus-Resumable": "1.0.0",
-                        "upload-length": str(file_size)}
-          r3 = requests.patch(target_url, headers=patch_hdrs, data=file_data, timeout=120)
-          if r3.status_code not in (200, 204):
-              print("TUS PATCH failed:", r3.status_code, r3.text[:200])
-              sys.exit(1)
-          print("Upload complete (", r3.status_code, ")")
+          print("All uploads succeeded. Polling live site...")
 
-          # Step 4 — trigger deploy
-          r4 = requests.post(
-              f"{base_url}/api/hosting/v1/accounts/{username}/websites/{domain}/deploy",
-              headers=hdrs_auth, json={"archive_path": archive_path}, timeout=60)
-          if r4.status_code not in (200, 201, 202):
-              print("Deploy trigger failed:", r4.status_code, r4.text[:300])
-              sys.exit(1)
-          print("Deploy triggered:", r4.status_code, r4.json())
-
-          # Step 5 — poll live site up to 4 minutes to confirm deploy propagated
-          print("Polling live site for deploy confirmation...")
+          # Poll live site for up to 4 minutes to confirm patches are live
           confirmed = False
           for attempt in range(24):  # 24 x 10s = 4 min
               time.sleep(10)
@@ -515,14 +509,14 @@ jobs:
                   has_minutos = 'minutos de leitura' in live
                   print(f"  [{(attempt+1)*10}s] cdc-patch-css={has_patch} minutos={has_minutos}")
                   if has_patch and has_minutos:
-                      print("Deploy confirmed live!")
+                      print("Live site confirmed updated!")
                       confirmed = True
                       break
               except Exception as e:
                   print(f"  [{(attempt+1)*10}s] check error: {e}")
           if not confirmed:
-              print("WARNING: deploy did not appear live within 4 minutes")
-              print("  (Hostinger may still be processing — check manually)")
+              print("WARNING: patches not detected after 4 minutes")
+              print("  (CDN cache may still be stale — check manually)")
           PYEOF
 
       - name: Clear pending flag on VPS
