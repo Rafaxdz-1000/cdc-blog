@@ -424,100 +424,92 @@ jobs:
           print('index.html size:', os.path.getsize(idx_path), 'bytes')
           PYEOF
 
-      - name: Upload patched files directly to Hostinger via TUS
-        env:
-          HOSTINGER_TOKEN: ${{ secrets.HOSTINGER_TOKEN }}
+      - name: Deploy patched files to VPS (Nginx document root)
         run: |
-          python3 << 'PYEOF'
-          import requests, os, sys, time
+          echo "=== Discovering Nginx document root for blog.clubedoscisnes.com ==="
 
-          tok = os.environ["HOSTINGER_TOKEN"]
-          domain   = "blog.clubedoscisnes.com"
-          username = "u759662497"
-          base_url = "https://developers.hostinger.com"
-          hdrs_auth = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
+          # Method 1: nginx -T (dumps full config) — look for root inside blog's server block
+          ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+            "nginx -T 2>/dev/null | awk '/server_name.*blog\.clubedoscisnes/{f=1} f && /^\s*root /{gsub(/;/,\"\"); print \$2; exit}'" 2>/dev/null | tr -d '[:space:]')
 
-          # Step 1 — get TUS upload credentials
-          r = requests.post(f"{base_url}/api/hosting/v1/files/upload-urls",
-              headers=hdrs_auth, json={"username": username, "domain": domain}, timeout=30)
-          if r.status_code != 200:
-              print("upload-urls failed:", r.status_code, r.text[:300])
-              sys.exit(1)
-          creds = r.json()
-          upload_url    = creds.get("url") or creds.get("data", {}).get("url", "")
-          auth_key      = creds.get("auth_key") or creds.get("data", {}).get("auth_key", "")
-          rest_auth_key = creds.get("rest_auth_key") or creds.get("data", {}).get("rest_auth_key", "")
-          print("upload_url:", upload_url)
-          # upload_url ends with /public_html — files go directly into the website root
+          # Method 2: grep sites-enabled / conf.d
+          if [ -z "$ROOT" ]; then
+            ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+              "grep -r 'root ' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | grep -v '#' | awk -F'root ' '{print \$2}' | awk '{print \$1}' | tr -d ';' | grep -v '^\$' | head -1" 2>/dev/null | tr -d '[:space:]')
+          fi
 
-          def tus_upload(local_path, remote_path):
-              """Upload local_path to public_html/remote_path on Hostinger via TUS.
-              No deploy API needed — file is immediately live."""
-              size = os.path.getsize(local_path)
-              # Append remote_path to the TUS base URL (which ends with /public_html)
-              target = f"{upload_url.rstrip('/')}/{remote_path}?override=true"
-              hdrs = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
-                      "upload-length": str(size), "upload-offset": "0"}
+          # Method 3: find the directory that has index.html under /opt/blog
+          if [ -z "$ROOT" ]; then
+            ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+              "for d in /opt/blog/public /opt/blog/dist /opt/blog/out /opt/blog/build /opt/blog/www /opt/blog; do
+                 [ -f \"\$d/index.html\" ] && echo \"\$d\" && break
+               done" 2>/dev/null | tr -d '[:space:]')
+          fi
 
-              # Create upload slot (TUS POST)
-              r2 = requests.post(target, headers=hdrs, data=b"", timeout=30)
-              if r2.status_code != 201:
-                  print(f"  Slot failed for {remote_path}: {r2.status_code} {r2.text[:200]}")
-                  return False
+          if [ -z "$ROOT" ]; then
+            echo "ERROR: Could not determine Nginx document root. SSH dump:"
+            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+              "ls /opt/blog/ 2>/dev/null; nginx -T 2>/dev/null | grep -E 'server_name|root ' | head -20"
+            exit 1
+          fi
 
-              # Upload file data (TUS PATCH)
-              with open(local_path, "rb") as f:
-                  data = f.read()
-              patch_hdrs = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
-                            "Content-Type": "application/offset+octet-stream",
-                            "Upload-Offset": "0", "Tus-Resumable": "1.0.0",
-                            "upload-length": str(size)}
-              r3 = requests.patch(target, headers=patch_hdrs, data=data, timeout=120)
-              if r3.status_code not in (200, 204):
-                  print(f"  PATCH failed for {remote_path}: {r3.status_code} {r3.text[:200]}")
-                  return False
-              print(f"  OK {remote_path} ({size:,} bytes, HTTP {r3.status_code})")
-              return True
+          echo "Nginx document root: $ROOT"
 
-          # Files to upload: (local path, destination relative to public_html/)
-          uploads = [("extracted/index.html", "index.html")]
-          if os.path.exists("extracted/assets/diagnostico-popup.js"):
-              uploads.append(("extracted/assets/diagnostico-popup.js", "assets/diagnostico-popup.js"))
+          # Ensure assets directory exists on VPS
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no root@69.62.99.164 "mkdir -p $ROOT/assets"
 
-          all_ok = True
-          for local, remote in uploads:
-              print(f"Uploading {local} -> public_html/{remote}")
-              if not tus_upload(local, remote):
-                  all_ok = False
+          # SCP patched index.html to VPS
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            scp -o StrictHostKeyChecking=no \
+            extracted/index.html \
+            root@69.62.99.164:$ROOT/index.html
+          echo "Uploaded index.html ($(wc -c < extracted/index.html) bytes)"
 
-          if not all_ok:
-              print("ERROR: one or more uploads failed")
-              sys.exit(1)
+          # SCP diagnostico-popup.js to VPS
+          if [ -f extracted/assets/diagnostico-popup.js ]; then
+            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+              scp -o StrictHostKeyChecking=no \
+              extracted/assets/diagnostico-popup.js \
+              root@69.62.99.164:$ROOT/assets/diagnostico-popup.js
+            echo "Uploaded diagnostico-popup.js"
+          fi
 
-          print("All uploads succeeded. Polling live site...")
+          # Verify patch landed on VPS
+          HITS=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+            "grep -c 'cdc-patch-css' $ROOT/index.html 2>/dev/null || echo 0" | tr -d '[:space:]')
+          echo "cdc-patch-css occurrences on VPS file: $HITS"
 
-          # Poll live site for up to 4 minutes to confirm patches are live
-          confirmed = False
-          for attempt in range(24):  # 24 x 10s = 4 min
-              time.sleep(10)
-              try:
-                  rv = requests.get("https://blog.clubedoscisnes.com/",
-                                    headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
-                                    timeout=15)
-                  live = rv.text
-                  has_patch = 'cdc-patch-css' in live
-                  has_minutos = 'minutos de leitura' in live
-                  print(f"  [{(attempt+1)*10}s] cdc-patch-css={has_patch} minutos={has_minutos}")
-                  if has_patch and has_minutos:
-                      print("Live site confirmed updated!")
-                      confirmed = True
-                      break
-              except Exception as e:
-                  print(f"  [{(attempt+1)*10}s] check error: {e}")
-          if not confirmed:
-              print("WARNING: patches not detected after 4 minutes")
-              print("  (CDN cache may still be stale — check manually)")
-          PYEOF
+          MINUTOS=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+            "grep -c 'minutos de leitura' $ROOT/index.html 2>/dev/null || echo 0" | tr -d '[:space:]')
+          echo "minutos de leitura occurrences on VPS file: $MINUTOS"
+
+          if [ "$HITS" -gt 0 ] && [ "$MINUTOS" -gt 0 ]; then
+            echo "Patch verified on VPS file"
+          else
+            echo "WARNING: patch verification failed (cdc-patch-css=$HITS, minutos=$MINUTOS)"
+            exit 1
+          fi
+
+      - name: Verify live site
+        run: |
+          echo "Waiting 5s for Nginx to serve updated file..."
+          sleep 5
+          LIVE=$(curl -s -H "Cache-Control: no-cache" -H "Pragma: no-cache" https://blog.clubedoscisnes.com/)
+          PATCH=$(echo "$LIVE" | grep -c 'cdc-patch-css' || echo 0)
+          MINUTOS=$(echo "$LIVE" | grep -c 'minutos de leitura' || echo 0)
+          echo "Live site — cdc-patch-css: $PATCH | minutos de leitura: $MINUTOS"
+          if [ "$PATCH" -gt 0 ] && [ "$MINUTOS" -gt 0 ]; then
+            echo "Live site confirmed updated!"
+          else
+            echo "WARNING: live site may be cached or deployment incomplete"
+          fi
 
       - name: Clear pending flag on VPS
         if: success()
