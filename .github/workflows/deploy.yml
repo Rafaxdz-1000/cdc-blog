@@ -247,13 +247,13 @@ jobs:
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display ("X" → "X Minutos de Leitura") ──────────
+          # ── 9. Fix read_time display ("X" → "X min de leitura") ──────────────
           html = re.sub(
               r'(text-neutral-600 text-\[11px\]">)(\d+)(</span>)',
-              r'\1\2 Minutos de Leitura\3',
+              r'\1\2 min de leitura\3',
               html
           )
-          changes.append('read-time-minutos-de-leitura')
+          changes.append('read-time-min-de-leitura')
 
           # ── Write patched HTML ────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
