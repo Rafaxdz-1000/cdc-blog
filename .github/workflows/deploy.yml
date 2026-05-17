@@ -247,23 +247,28 @@ jobs:
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display: "X" or "X min" → "X minutos de leitura" ───
-          # Matches spans with text-neutral-600 text-[11px] (with or without font-mono)
-          # Pattern 1: bare digit (e.g. >4<)
+          # ── 9. Fix read_time display → "X minutos de leitura" everywhere ─────
+          # Pattern 1: bare digit  >4<
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+)(</span>)',
               r'\1\2 minutos de leitura\3',
               html
           )
-          # Pattern 2: "X min" without "de leitura" (e.g. >4 min<)
+          # Pattern 2: "X min" directly before </span>
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+) min(</span>)',
               r'\1\2 minutos de leitura\3',
               html
           )
-          # Pattern 3: old format "X min • Category" with text-neutral-700 text-[10px]
+          # Pattern 3: "X min de leitura" → "X minutos de leitura"
           html = re.sub(
-              r'(text-neutral-700 text-\[10px\][^"]*">)(\d+) min\s*(?:&bull;|•)\s*[^<]*(</span>)',
+              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+) min de leitura(</span>)',
+              r'\1\2 minutos de leitura\3',
+              html
+          )
+          # Pattern 4: old sidebar format "X min • Category" with text-neutral-700 text-[10px]
+          html = re.sub(
+              r'(<span class="text-neutral-700 text-\[10px\][^"]*">)(\d+) min\s*(?:&bull;|•)\s*[^<]*(</span>)',
               r'<span class="text-neutral-600 text-[11px] font-mono">\2 minutos de leitura\3',
               html
           )
@@ -434,7 +439,7 @@ jobs:
           HOSTINGER_TOKEN: ${{ secrets.HOSTINGER_TOKEN }}
         run: |
           python3 << 'PYEOF'
-          import requests, os, sys
+          import requests, os, sys, time
 
           tok = os.environ["HOSTINGER_TOKEN"]
           zip_path = "blog-deploy.zip"
@@ -453,18 +458,24 @@ jobs:
           upload_url    = creds.get("url") or creds.get("data", {}).get("url", "")
           auth_key      = creds.get("auth_key") or creds.get("data", {}).get("auth_key", "")
           rest_auth_key = creds.get("rest_auth_key") or creds.get("data", {}).get("rest_auth_key", "")
-          print("Credentials OK, upload_url:", upload_url[:60])
+          print("Credentials OK, upload_url:", upload_url)
 
           file_size  = os.path.getsize(zip_path)
           filename   = "blog-deploy.zip"
           target_url = f"{upload_url.rstrip('/')}/{filename}?override=true"
+          # archive_path must match where TUS stores the file:
+          # upload_url ends with /public_html, so file lands at public_html/blog-deploy.zip
+          archive_path = f"public_html/{filename}"
+          print(f"Uploading {file_size} bytes → {target_url}")
+          print(f"Will deploy with archive_path: {archive_path}")
+
           up_hdrs    = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
                         "upload-length": str(file_size), "upload-offset": "0"}
 
           # Step 2 — pre-create slot
           r2 = requests.post(target_url, headers=up_hdrs, data=b"", timeout=30)
           if r2.status_code != 201:
-              print("Slot failed:", r2.status_code, r2.text[:100])
+              print("Slot failed:", r2.status_code, r2.text[:200])
               sys.exit(1)
           print("Upload slot created (201)")
 
@@ -477,18 +488,41 @@ jobs:
                         "upload-length": str(file_size)}
           r3 = requests.patch(target_url, headers=patch_hdrs, data=file_data, timeout=120)
           if r3.status_code not in (200, 204):
-              print("TUS PATCH failed:", r3.status_code, r3.text[:100])
+              print("TUS PATCH failed:", r3.status_code, r3.text[:200])
               sys.exit(1)
           print("Upload complete (", r3.status_code, ")")
 
           # Step 4 — trigger deploy
           r4 = requests.post(
               f"{base_url}/api/hosting/v1/accounts/{username}/websites/{domain}/deploy",
-              headers=hdrs_auth, json={"archive_path": filename}, timeout=60)
+              headers=hdrs_auth, json={"archive_path": archive_path}, timeout=60)
           if r4.status_code not in (200, 201, 202):
-              print("Deploy trigger failed:", r4.status_code, r4.text[:200])
+              print("Deploy trigger failed:", r4.status_code, r4.text[:300])
               sys.exit(1)
-          print("Deploy triggered successfully:", r4.json())
+          print("Deploy triggered:", r4.status_code, r4.json())
+
+          # Step 5 — poll live site up to 4 minutes to confirm deploy propagated
+          print("Polling live site for deploy confirmation...")
+          confirmed = False
+          for attempt in range(24):  # 24 x 10s = 4 min
+              time.sleep(10)
+              try:
+                  rv = requests.get("https://blog.clubedoscisnes.com/",
+                                    headers={"Cache-Control": "no-cache", "Pragma": "no-cache"},
+                                    timeout=15)
+                  live = rv.text
+                  has_patch = 'cdc-patch-css' in live
+                  has_minutos = 'minutos de leitura' in live
+                  print(f"  [{(attempt+1)*10}s] cdc-patch-css={has_patch} minutos={has_minutos}")
+                  if has_patch and has_minutos:
+                      print("Deploy confirmed live!")
+                      confirmed = True
+                      break
+              except Exception as e:
+                  print(f"  [{(attempt+1)*10}s] check error: {e}")
+          if not confirmed:
+              print("WARNING: deploy did not appear live within 4 minutes")
+              print("  (Hostinger may still be processing — check manually)")
           PYEOF
 
       - name: Clear pending flag on VPS
