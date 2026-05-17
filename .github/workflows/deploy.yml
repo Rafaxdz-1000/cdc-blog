@@ -21,7 +21,7 @@ jobs:
         run: |
           sshpass -p "${{ secrets.VPS_PASSWORD }}" \
             scp -o StrictHostKeyChecking=no \
-            root@${{ secrets.VPS_HOST }}:/opt/blog/blog-deploy.zip \
+            root@69.62.99.164:/opt/blog/blog-deploy.zip \
             ./blog-deploy.zip
           echo "ZIP size: $(wc -c < blog-deploy.zip) bytes"
 
@@ -87,17 +87,17 @@ jobs:
           # ── 3. Logo: text → image ────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
-                  r'(<a\b[^>]*href=["\']https?://(?:www\.)?clubedoscisnes\.com/?["\'][^>]*>)'
+                  r'(<a\b[^>]*href=["\'](https?://(?:www\.)?clubedoscisnes\.com/?)["\'][^>]*>)'
                   r'((?:(?!</a>).)*)'
                   r'(</a>)',
                   html, re.DOTALL | re.IGNORECASE
               )
-              if m and 'CLUBE' in m.group(2).upper() and '<img' not in m.group(2):
+              if m and 'CLUBE' in m.group(3).upper() and '<img' not in m.group(3):
                   repl = (m.group(1) +
                           '<img src="https://clubedoscisnes.com/assets/images/Logo.png"'
                           ' alt="Clube dos Cisnes" id="cdc-logo-img"'
                           ' style="height:32px;width:auto;" loading="eager">' +
-                          m.group(3))
+                          m.group(4))
                   html = html[:m.start()] + repl + html[m.end():]
                   changes.append('logo-image')
 
@@ -115,7 +115,7 @@ jobs:
                   rest = html[abs_start:]
                   depth = 0
                   end_off = None
-                  for tm in re.finditer(r'<(/?)'  + tag_name + r'[\s>]', rest, re.IGNORECASE):
+                  for tm in re.finditer(r'<(/?)' + tag_name + r'[\s>]', rest, re.IGNORECASE):
                       if tm.group(1) == '/':
                           depth -= 1
                       else:
@@ -247,11 +247,24 @@ jobs:
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display ("X" → "X min de leitura") ─────────────
-          # FIX: regex now matches any extra classes (e.g. font-mono) after text-[11px]
+          # ── 9. Fix read_time display: "X" or "X min" → "X min de leitura" ───
+          # Matches spans with text-neutral-600 text-[11px] (with or without font-mono)
+          # Pattern 1: bare digit (e.g. >4<)
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+)(</span>)',
               r'\1\2 min de leitura\3',
+              html
+          )
+          # Pattern 2: "X min" without "de leitura" (e.g. >4 min<)
+          html = re.sub(
+              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+ min)(</span>)',
+              r'\1\2 de leitura\3',
+              html
+          )
+          # Pattern 3: old format "X min • Category" with text-neutral-700 text-[10px]
+          html = re.sub(
+              r'(text-neutral-700 text-\[10px\][^"]*">)(\d+) min\s*(?:&bull;|•)\s*[^<]*(</span>)',
+              r'<span class="text-neutral-600 text-[11px] font-mono">\2 min de leitura\3',
               html
           )
           changes.append('read-time-min-de-leitura')
@@ -291,7 +304,10 @@ jobs:
                   _am['category'] = _bm.group(2).strip()
               else:
                   _am['badge_class'] = 'badge-ia'; _am['category'] = 'IA'
+              # Extract read_time from article: try "X min de leitura" first, then "X min"
               _rtm = re.search(r'(\d+)\s*min\s*de\s*leitura', _ah)
+              if not _rtm:
+                  _rtm = re.search(r'(\d+)\s*min', _ah)
               _am['read_time'] = _rtm.group(1) if _rtm else '5'
               _art_metas.append(_am)
           _art_metas.sort(key=lambda a: a.get('date', ''), reverse=True)
@@ -480,5 +496,5 @@ jobs:
         run: |
           sshpass -p "${{ secrets.VPS_PASSWORD }}" \
             ssh -o StrictHostKeyChecking=no \
-            root@${{ secrets.VPS_HOST }} \
+            root@69.62.99.164 \
             "rm -f /opt/blog/.pending-deploy && echo flag_cleared"
