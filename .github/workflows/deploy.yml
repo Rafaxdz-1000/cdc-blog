@@ -424,7 +424,7 @@ jobs:
           zip_path = "blog-deploy.zip"
           domain   = "blog.clubedoscisnes.com"
           username = "u759662497"
-          base_url = "https://api.hostinger.com"
+          base_url = "https://developers.hostinger.com"
           hdrs_auth = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
 
           # Step 1 — upload credentials
