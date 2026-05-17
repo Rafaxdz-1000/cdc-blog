@@ -247,9 +247,13 @@ jobs:
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display ("X" → "X min") in listing cards ────────
-          html = re.sub(r'(mt-1\.5 font-mono">)(\d+)(</p>)', r'\1\2 min\3', html)
-          changes.append('read-time-min')
+          # ── 9. Fix read_time display ("X" → "X Minutos de Leitura") ──────────
+          html = re.sub(
+              r'(text-neutral-600 text-\[11px\]">)(\d+)(</span>)',
+              r'\1\2 Minutos de Leitura\3',
+              html
+          )
+          changes.append('read-time-minutos-de-leitura')
 
           # ── Write patched HTML ────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
