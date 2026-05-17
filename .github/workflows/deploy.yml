@@ -87,7 +87,7 @@ jobs:
           # ── 3. Logo: text → image ────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
-                  r'(<a\b[^>]*href=["\'](https?://(?:www\.)?clubedoscisnes\.com/?)["\'][^>]*>)'
+                  r'(<a\b[^>]*href=[\"\\'](https?://(?:www\\.)?clubedoscisnes\\.com/?)[\"\\'][^>]*>)'
                   r'((?:(?!</a>).)*)'
                   r'(</a>)',
                   html, re.DOTALL | re.IGNORECASE
@@ -247,27 +247,27 @@ jobs:
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display: "X" or "X min" → "X min de leitura" ───
+          # ── 9. Fix read_time display: "X" or "X min" → "X minutos de leitura" ───
           # Matches spans with text-neutral-600 text-[11px] (with or without font-mono)
           # Pattern 1: bare digit (e.g. >4<)
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+)(</span>)',
-              r'\1\2 min de leitura\3',
+              r'\1\2 minutos de leitura\3',
               html
           )
           # Pattern 2: "X min" without "de leitura" (e.g. >4 min<)
           html = re.sub(
-              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+ min)(</span>)',
-              r'\1\2 de leitura\3',
+              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+) min(</span>)',
+              r'\1\2 minutos de leitura\3',
               html
           )
           # Pattern 3: old format "X min • Category" with text-neutral-700 text-[10px]
           html = re.sub(
               r'(text-neutral-700 text-\[10px\][^"]*">)(\d+) min\s*(?:&bull;|•)\s*[^<]*(</span>)',
-              r'<span class="text-neutral-600 text-[11px] font-mono">\2 min de leitura\3',
+              r'<span class="text-neutral-600 text-[11px] font-mono">\2 minutos de leitura\3',
               html
           )
-          changes.append('read-time-min-de-leitura')
+          changes.append('read-time-minutos-de-leitura')
 
           # ── 10. Inject Google AdSense global tag ─────────────────────────────
           adsense_tag = (
@@ -304,8 +304,8 @@ jobs:
                   _am['category'] = _bm.group(2).strip()
               else:
                   _am['badge_class'] = 'badge-ia'; _am['category'] = 'IA'
-              # Extract read_time from article: try "X min de leitura" first, then "X min"
-              _rtm = re.search(r'(\d+)\s*min\s*de\s*leitura', _ah)
+              # Extract read_time from article: try "X minutos de leitura" first, then "X min"
+              _rtm = re.search(r'(\d+)\s*minutos\s*de\s*leitura', _ah)
               if not _rtm:
                   _rtm = re.search(r'(\d+)\s*min', _ah)
               _am['read_time'] = _rtm.group(1) if _rtm else '5'
@@ -326,7 +326,7 @@ jobs:
                           f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
                           f'<h3 class="font-syne font-bold text-white text-sm leading-snug mb-2 group-hover:text-blue-300 transition-colors">{t}</h3>'
                           f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-3">{d}</p>'
-                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} minutos de leitura</span>'
                           f'</div><div class="shrink-0 w-[90px] h-[70px] sm:w-[110px] sm:h-[80px] overflow-hidden">'
                           f'<img alt="{t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"'
                           f' loading="lazy" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
@@ -341,7 +341,7 @@ jobs:
                           f' loading="eager" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
                           f'</div><div class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:gap-3">'
                           f'<span class="badge {bc}">{cat}</span>'
-                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} minutos de leitura</span>'
                           f'</div><h2 class="font-syne font-extrabold text-white leading-tight mb-3 group-hover:text-blue-300 transition-colors">{t}</h2>'
                           f'<p class="text-neutral-400 text-sm leading-relaxed line-clamp-3 mb-4">{d}</p>'
                           f'<div class="flex items-center justify-between mt-auto">'
@@ -360,7 +360,7 @@ jobs:
                           f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
                           f'<h3 class="font-syne font-semibold text-white text-sm leading-snug mb-1.5 group-hover:text-blue-300 transition-colors line-clamp-2">{t}</h3>'
                           f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-2">{d}</p>'
-                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} minutos de leitura</span>'
                           f'</a>')
 
               def _ml(a, n):
