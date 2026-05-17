@@ -25,12 +25,12 @@ jobs:
             ./blog-deploy.zip
           echo "ZIP size: $(wc -c < blog-deploy.zip) bytes"
 
-      - name: Patch blog (logo, search, categories, popup, social links, read-time, adsense, dynamic sections)
+      - name: Patch blog
         run: |
           python3 << 'PYEOF'
           import zipfile, os, re, shutil, json as _json
 
-          # ── Extract ────────────────────────────────────────────────────────────────────
+          # ── Extract ──────────────────────────────────────────────────────────
           with zipfile.ZipFile('blog-deploy.zip', 'r') as z:
               z.extractall('extracted')
           print('Extracted files:')
@@ -40,7 +40,6 @@ jobs:
 
           os.makedirs('extracted/assets', exist_ok=True)
 
-          # Copy popup JS from repo checkout
           if os.path.exists('assets/diagnostico-popup.js'):
               shutil.copy('assets/diagnostico-popup.js', 'extracted/assets/diagnostico-popup.js')
               print('Copied diagnostico-popup.js')
@@ -53,14 +52,14 @@ jobs:
 
           changes = []
 
-          # ── 1. Favicon ────────────────────────────────────────────────────────────────────
+          # ── 1. Favicon ───────────────────────────────────────────────────────
           if 'favicon.ico' not in html:
               fav = ('<link rel="icon" href="/assets/images/favicon.ico" type="image/x-icon">\n'
                      '<link rel="shortcut icon" href="/assets/images/favicon.ico" type="image/x-icon">\n')
               html = html.replace('</head>', fav + '</head>', 1)
               changes.append('favicon')
 
-          # ── 2. Extra CSS ────────────────────────────────────────────────────────────────────
+          # ── 2. Extra CSS (UI + ad containers) ───────────────────────────────
           if 'cdc-patch-css' not in html:
               css = ("<style id=\"cdc-patch-css\">\n"
                      ".cat-tab{font-family:'Syne',sans-serif;font-size:.65rem;font-weight:700;"
@@ -80,28 +79,40 @@ jobs:
                      "outline:none;transition:border-color .2s;width:100%;max-width:260px}\n"
                      "#cdc-search:focus{border-color:rgba(37,99,235,.5)}\n"
                      "#cdc-search::placeholder{color:#4b5563}\n"
+                     "/* Ad containers — hidden until AdSense fills the slot */\n"
+                     ".cdc-ad-wrap{display:none;width:100%;padding:1.75rem 1rem;"
+                     "text-align:center;border-top:1px solid rgba(255,255,255,0.05);"
+                     "border-bottom:1px solid rgba(255,255,255,0.05);box-sizing:border-box}\n"
+                     ".cdc-ad-wrap.has-ad{display:block}\n"
+                     ".cdc-ad-label{display:block;font-size:.58rem;letter-spacing:.2em;"
+                     "text-transform:uppercase;color:rgba(255,255,255,0.2);"
+                     "font-family:monospace;margin-bottom:.75rem}\n"
+                     ".cdc-ad-infeed{grid-column:1/-1;display:none;padding:1.5rem 0;"
+                     "border-top:1px solid rgba(255,255,255,0.05);"
+                     "border-bottom:1px solid rgba(255,255,255,0.05);text-align:center}\n"
+                     ".cdc-ad-infeed.has-ad{display:block}\n"
                      "</style>")
               html = html.replace('</head>', css + '\n</head>', 1)
               changes.append('extra-css')
 
-          # ── 3. Logo: text → image ─────────────────────────────────────────────────────────────────────────
+          # ── 3. Logo: text → image ────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
-                  r'(<a\b[^>]*href=["\']https?://(?:www\.)?clubedoscisnes\.com/?["\'][^>]*>)'
+                  r'(<a\b[^>]*href=["\'](https?://(?:www\.)?clubedoscisnes\.com/?)["\'][^>]*>)'
                   r'((?:(?!</a>).)*)'
                   r'(</a>)',
                   html, re.DOTALL | re.IGNORECASE
               )
-              if m and 'CLUBE' in m.group(2).upper() and '<img' not in m.group(2):
+              if m and 'CLUBE' in m.group(3).upper() and '<img' not in m.group(3):
                   repl = (m.group(1) +
                           '<img src="https://clubedoscisnes.com/assets/images/Logo.png"'
                           ' alt="Clube dos Cisnes" id="cdc-logo-img"'
                           ' style="height:32px;width:auto;" loading="eager">' +
-                          m.group(3))
+                          m.group(4))
                   html = html[:m.start()] + repl + html[m.end():]
                   changes.append('logo-image')
 
-          # ── 4. Remove EM ALTA trending bar ───────────────────────────────────────────────────────────────────
+          # ── 4. Remove EM ALTA ────────────────────────────────────────────────
           if 'EM ALTA' in html:
               pos = html.find('EM ALTA')
               before = html[max(0, pos - 800):pos]
@@ -113,32 +124,27 @@ jobs:
                   tag_name = last.group(1).lower()
                   abs_start = max(0, pos - 800) + last.start()
                   rest = html[abs_start:]
-                  depth = 0
-                  end_off = None
+                  depth = 0; end_off = None
                   for tm in re.finditer(r'<(/?)' + tag_name + r'[\s>]', rest, re.IGNORECASE):
-                      if tm.group(1) == '/':
-                          depth -= 1
-                      else:
-                          depth += 1
+                      if tm.group(1) == '/': depth -= 1
+                      else: depth += 1
                       if depth == 0:
-                          end_off = tm.end()
-                          break
+                          end_off = tm.end(); break
                   if end_off:
                       html = html[:abs_start] + html[abs_start + end_off:]
-                      changes.append('removed-em-alta')
-                      removed = True
+                      changes.append('removed-em-alta'); removed = True
               if not removed:
                   html = re.sub(r'[^\n]*EM ALTA[^\n]*\n?', '', html)
                   changes.append('removed-em-alta-line')
 
-          # ── 5. Fix social links ─────────────────────────────────────────────────────────────────────────
+          # ── 5. Social links ──────────────────────────────────────────────────
           html = html.replace('instagram.com/rafaelwillians_cdc', 'instagram.com/clubedoscisnes_')
           html = html.replace('youtube.com/@rafaelwillians_cdc',
                               'youtube.com/channel/UCFEv58QJTZ0kWbNtU4YFqBg')
           html = html.replace('@rafaelwillians_cdc', '@clubedoscisnes_')
           changes.append('social-links')
 
-          # ── 6. Tag articles with data-category ──────────────────────────────────────────────────────────────────
+          # ── 6. Tag articles with data-category ──────────────────────────────
           BMAP = {
               'badge-ia': 'ia', 'badge-marketing': 'marketing',
               'badge-automacao': 'automacao', 'badge-cases': 'cases',
@@ -148,13 +154,10 @@ jobs:
           def tag_art(m):
               blk = m.group(0)
               om = re.match(r'<article([^>]*)>', blk, re.IGNORECASE)
-              if not om or 'data-category' in om.group(1):
-                  return blk
+              if not om or 'data-category' in om.group(1): return blk
               cat = 'ia'
               for badge, c in BMAP.items():
-                  if badge in blk:
-                      cat = c
-                      break
+                  if badge in blk: cat = c; break
               th = re.search(r'<h[23][^>]*>(.*?)</h[23]>', blk, re.DOTALL | re.IGNORECASE)
               title = re.sub(r'<[^>]+>', '', th.group(1)).strip().replace('"', '')[:120] if th else ''
               tp = re.search(r'<p[^>]*>(.*?)</p>', blk, re.DOTALL | re.IGNORECASE)
@@ -162,11 +165,10 @@ jobs:
               new_open = '<article%s data-category="%s" data-title="%s" data-excerpt="%s">' % (
                   om.group(1), cat, title, exc)
               return new_open + blk[om.end():]
-
           html = re.sub(r'<article\b.*?</article>', tag_art, html, flags=re.DOTALL | re.IGNORECASE)
           changes.append('data-category')
 
-          # ── 7. Search bar + category tabs before first article ───────────────────────────────────────────────
+          # ── 7. Search bar + category tabs ────────────────────────────────────
           if 'cdc-search' not in html:
               tabs = (
                   '<!-- CDC Patch: search + tabs -->'
@@ -200,7 +202,7 @@ jobs:
                   html = html[:fa] + tabs + html[fa:]
               changes.append('search-tabs')
 
-          # ── 8. JS + popup before </body> ───────────────────────────────────────────────────────────────────────
+          # ── 8. JS + popup + ad visibility ────────────────────────────────────
           if 'cdc-filter-popup' not in html:
               js = (
                   '<script id="cdc-filter-popup">(function(){'
@@ -241,49 +243,45 @@ jobs:
                   'document.addEventListener("mouseleave",function h(e){'
                   'if(e.clientY<5){clearTimeout(pt);document.removeEventListener("mouseleave",h);fp();}});'
                   '}'
+                  # Show ad container only when AdSense fills the slot
+                  'window.addEventListener("load",function(){'
+                  'setTimeout(function(){'
+                  'document.querySelectorAll(".cdc-ad-wrap,.cdc-ad-infeed").forEach(function(w){'
+                  'var ins=w.querySelector("ins.adsbygoogle");'
+                  'if(ins&&ins.offsetHeight>0)w.classList.add("has-ad");'
+                  '});'
+                  '},2500);});'
                   '})();</script>\n'
                   '<script src="/assets/diagnostico-popup.js" defer></script>'
               )
               html = html.replace('</body>', js + '\n</body>', 1)
               changes.append('js-popup')
 
-          # ── 9. Fix read_time display → "X minutos de leitura" everywhere ─────────────────────────
-          # Pattern 1: bare digit  >4<
+          # ── 9. Fix read_time display → "X min de leitura" ───────────────────
+          # P1: bare digit
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+)(</span>)',
-              r'\1\2 minutos de leitura\3',
-              html
-          )
-          # Pattern 2: "X min" directly before </span>
+              r'\1\2 min de leitura\3', html)
+          # P2: "X min" without "de leitura"
           html = re.sub(
-              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+) min(</span>)',
-              r'\1\2 minutos de leitura\3',
-              html
-          )
-          # Pattern 3: "X min de leitura" → "X minutos de leitura"
-          html = re.sub(
-              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+) min de leitura(</span>)',
-              r'\1\2 minutos de leitura\3',
-              html
-          )
-          # Pattern 4: old sidebar format "X min • Category" with text-neutral-700 text-[10px]
+              r'(text-neutral-600 text-\[11px\][^"]*">)(\d+ min)(</span>)',
+              r'\1\2 de leitura\3', html)
+          # P3: old sidebar "X min • Category" with text-neutral-700 text-[10px]
           html = re.sub(
               r'(<span class="text-neutral-700 text-\[10px\][^"]*">)(\d+) min\s*(?:&bull;|•)\s*[^<]*(</span>)',
-              r'<span class="text-neutral-600 text-[11px] font-mono">\2 minutos de leitura\3',
-              html
-          )
-          changes.append('read-time-minutos-de-leitura')
+              r'<span class="text-neutral-600 text-[11px] font-mono">\2 min de leitura\3', html)
+          changes.append('read-time')
 
-          # ── 10. Inject Google AdSense global tag ────────────────────────────────────────────────────────────────
+          # ── 10. AdSense global tag ───────────────────────────────────────────
           adsense_tag = (
               '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
               '?client=ca-pub-4015828754517117" crossorigin="anonymous"></script>'
           )
           if adsense_tag not in html:
               html = html.replace('</head>', adsense_tag + '\n</head>', 1)
-              changes.append('adsense-global-tag')
+              changes.append('adsense-tag')
 
-          # ── 11. Rebuild Featured (3-col) + Mais Lidas with most-recent articles
+          # ── 11. Rebuild Featured grid + Mais Lidas ───────────────────────────
           _art_metas = []
           for _dname in sorted(os.listdir('extracted')):
               _dp = os.path.join('extracted', _dname)
@@ -299,20 +297,13 @@ jobs:
                           _am = {'title': _jd.get('headline', ''),
                                  'date': _jd.get('datePublished', ''),
                                  'description': _jd.get('description', ''),
-                                 'slug': _dname}
-                          break
+                                 'slug': _dname}; break
                   except: pass
               if not _am or not _am['title']: continue
               _bm = re.search(r'class="badge (badge-\w+)[^"]*"[^>]*>\s*([^<]+)</span>', _ah)
-              if _bm:
-                  _am['badge_class'] = _bm.group(1)
-                  _am['category'] = _bm.group(2).strip()
-              else:
-                  _am['badge_class'] = 'badge-ia'; _am['category'] = 'IA'
-              # Extract read_time: try "X minutos de leitura" first, then "X min"
-              _rtm = re.search(r'(\d+)\s*minutos\s*de\s*leitura', _ah)
-              if not _rtm:
-                  _rtm = re.search(r'(\d+)\s*min', _ah)
+              if _bm: _am['badge_class'] = _bm.group(1); _am['category'] = _bm.group(2).strip()
+              else: _am['badge_class'] = 'badge-ia'; _am['category'] = 'IA'
+              _rtm = re.search(r'(\d+)\s*min(?:\s*de\s*leitura)?', _ah)
               _am['read_time'] = _rtm.group(1) if _rtm else '5'
               _art_metas.append(_am)
           _art_metas.sort(key=lambda a: a.get('date', ''), reverse=True)
@@ -320,33 +311,31 @@ jobs:
 
           if len(_art_metas) >= 8:
               def _e(s):
-                  return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
-
+                  return str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
               def _lc(a, fi=False):
                   fc = ' pt-0 sm:pt-0' if fi else ''
-                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category'])
-                  t = _e(a['title']); d = _e(a['description'][:120]); rt = a['read_time']
+                  s=a['slug'];bc=a['badge_class'];cat=_e(a['category'])
+                  t=_e(a['title']);d=_e(a['description'][:120]);rt=a['read_time']
                   return (f'<a href="/{s}/" class="group flex gap-4 py-5{fc}">'
                           f'<div class="flex-1 min-w-0 order-first">'
                           f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
                           f'<h3 class="font-syne font-bold text-white text-sm leading-snug mb-2 group-hover:text-blue-300 transition-colors">{t}</h3>'
                           f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-3">{d}</p>'
-                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} minutos de leitura</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
                           f'</div><div class="shrink-0 w-[90px] h-[70px] sm:w-[110px] sm:h-[80px] overflow-hidden">'
                           f'<img alt="{t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"'
                           f' loading="lazy" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
                           f'</div></a>')
-
               def _hc(a):
-                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category'])
-                  t = _e(a['title']); d = _e(a['description'][:200]); rt = a['read_time']
+                  s=a['slug'];bc=a['badge_class'];cat=_e(a['category'])
+                  t=_e(a['title']);d=_e(a['description'][:200]);rt=a['read_time']
                   return (f'<a href="/{s}/" class="group flex flex-col py-5 lg:py-0 lg:px-7 border-y lg:border-y-0 border-white/[0.07] my-2 lg:my-0">'
                           f'<div class="w-full h-[220px] sm:h-[280px] lg:h-[340px] overflow-hidden mb-5">'
                           f'<img alt="{t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"'
                           f' loading="eager" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
                           f'</div><div class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:gap-3">'
                           f'<span class="badge {bc}">{cat}</span>'
-                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} minutos de leitura</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
                           f'</div><h2 class="font-syne font-extrabold text-white leading-tight mb-3 group-hover:text-blue-300 transition-colors">{t}</h2>'
                           f'<p class="text-neutral-400 text-sm leading-relaxed line-clamp-3 mb-4">{d}</p>'
                           f'<div class="flex items-center justify-between mt-auto">'
@@ -357,19 +346,17 @@ jobs:
                           f'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
                           f'<path d="M5 12h14M12 5l7 7-7 7"/></svg>'
                           f'</span></div></a>')
-
               def _rc(a):
-                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category'])
-                  t = _e(a['title']); d = _e(a['description'][:120]); rt = a['read_time']
+                  s=a['slug'];bc=a['badge_class'];cat=_e(a['category'])
+                  t=_e(a['title']);d=_e(a['description'][:120]);rt=a['read_time']
                   return (f'<a href="/{s}/" class="group py-4 first:pt-0 block">'
                           f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
                           f'<h3 class="font-syne font-semibold text-white text-sm leading-snug mb-1.5 group-hover:text-blue-300 transition-colors line-clamp-2">{t}</h3>'
                           f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-2">{d}</p>'
-                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} minutos de leitura</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
                           f'</a>')
-
               def _ml(a, n):
-                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category']); t = _e(a['title'])
+                  s=a['slug'];bc=a['badge_class'];cat=_e(a['category']);t=_e(a['title'])
                   return (f'<a href="/{s}/" class="group flex sm:flex-col gap-4 sm:gap-3 px-0 sm:px-5 py-4 sm:py-0 first:pl-0 hover:bg-white/[0.02] transition-colors">'
                           f'<div class="shrink-0 relative">'
                           f'<span class="absolute -top-1 -left-1 z-10 w-5 h-5 bg-[#2563EB] text-white text-[10px] font-bold font-mono flex items-center justify-center">{n}</span>'
@@ -380,7 +367,6 @@ jobs:
                           f'<span class="badge {bc} text-[9px] mb-1.5 inline-block">{cat}</span>'
                           f'<p class="text-xs text-neutral-300 leading-snug group-hover:text-white transition-colors line-clamp-3">{t}</p>'
                           f'</div></a>')
-
               _nf = ('<div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-0 lg:divide-x divide-white/[0.07]">'
                      '<div class="editorial-left-col flex flex-col divide-y divide-white/[0.07] lg:pr-7">'
                      + _lc(_art_metas[1], fi=True) + _lc(_art_metas[2]) + _lc(_art_metas[3])
@@ -388,11 +374,9 @@ jobs:
                      + '<div class="hidden lg:flex flex-col divide-y divide-white/[0.07] lg:pl-7">'
                      + _rc(_art_metas[4]) + _rc(_art_metas[5]) + _rc(_art_metas[6]) + _rc(_art_metas[7])
                      + '</div></div>')
-
               _nm = ('<div class="grid grid-cols-1 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.07]">'
-                     + _ml(_art_metas[0], 1) + _ml(_art_metas[1], 2) + _ml(_art_metas[2], 3)
-                     + _ml(_art_metas[3], 4) + _ml(_art_metas[4], 5) + '</div>')
-
+                     + _ml(_art_metas[0],1) + _ml(_art_metas[1],2) + _ml(_art_metas[2],3)
+                     + _ml(_art_metas[3],4) + _ml(_art_metas[4],5) + '</div>')
               def _rg(h, mk, ng):
                   m = re.search(r'<div[\s>][^>]*' + re.escape(mk), h)
                   if not m: return h, False
@@ -409,7 +393,6 @@ jobs:
                           if dp == 0: return h[:m.start()] + ng + h[cd + 6:], True
                           pos = cd + 6
                   return h, False
-
               html, _ok1 = _rg(html, 'lg:grid-cols-[1fr_2fr_1fr]', _nf)
               html, _ok2 = _rg(html, 'sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x', _nm)
               if _ok1: changes.append('featured-rebuilt')
@@ -417,99 +400,137 @@ jobs:
           else:
               print('Skipping dynamic rebuild: need 8+ articles, found {}'.format(len(_art_metas)))
 
-          # ── Write patched HTML ───────────────────────────────────────────────────────────────────────────
+          # ── 12. Ad containers (3 positions, Google AdSense best practices) ────
+          # Design: containers are invisible (display:none) until AdSense fills
+          # the slot — no layout shift, no empty boxes showing on pending account.
+          #
+          # ⚠  TO ACTIVATE: once the AdSense account is approved, create ad units
+          #    at https://adsense.google.com → Anúncios → Por unidade de anúncio
+          #    then replace the empty strings below with the real slot IDs.
+          AD_CLIENT = 'ca-pub-4015828754517117'
+          AD_SLOT_H1 = ''   # Position 1 — between Featured and Mais Lidas
+          AD_SLOT_H2 = ''   # Position 2 — between Mais Lidas and Webstories
+          AD_SLOT_IF = ''   # Position 3 — in-feed inside article grid (after 4th card)
+
+          def _adblock(slot, fmt='auto', extra_cls=''):
+              cls = 'cdc-ad-wrap' + (' ' + extra_cls if extra_cls else '')
+              return (
+                  f'<div class="{cls}" aria-label="Publicidade" role="complementary">'
+                  f'<span class="cdc-ad-label">Publicidade</span>'
+                  f'<ins class="adsbygoogle"'
+                  f' style="display:block"'
+                  f' data-ad-client="{AD_CLIENT}"'
+                  f' data-ad-slot="{slot}"'
+                  f' data-ad-format="{fmt}"'
+                  f' data-full-width-responsive="true"></ins>'
+                  f'<script>(adsbygoogle=window.adsbygoogle||[]).push({{}});</script>'
+                  f'</div>'
+              )
+
+          if 'cdc-ad-wrap' not in html:
+              ad_hits = []
+
+              # Position 1 — before "MAIS LIDAS" section
+              ml_idx = html.find('MAIS LIDAS')
+              if ml_idx > -1:
+                  sec1 = html.rfind('<section', 0, ml_idx)
+                  if sec1 > -1:
+                      html = html[:sec1] + _adblock(AD_SLOT_H1) + '\n' + html[sec1:]
+                      ad_hits.append('ad1-before-mais-lidas')
+
+              # Position 2 — before "Webstories" section (re-search in updated html)
+              ws_idx = html.find('Webstories')
+              if ws_idx > -1:
+                  sec2 = html.rfind('<section', 0, ws_idx)
+                  if sec2 > -1:
+                      html = html[:sec2] + _adblock(AD_SLOT_H2) + '\n' + html[sec2:]
+                      ad_hits.append('ad2-before-webstories')
+
+              # Position 3 — in-feed after 4th article card in 2-col grid
+              grid_m = re.search(
+                  r'<div[^>]+class="[^"]*grid[^"]*grid-cols-1 sm:grid-cols-2[^"]*"[^>]*>', html)
+              if grid_m:
+                  pos3 = grid_m.end()
+                  count = 0
+                  while count < 4:
+                      art_end = html.find('</article>', pos3)
+                      if art_end == -1: break
+                      pos3 = art_end + len('</article>')
+                      count += 1
+                  if count == 4:
+                      html = html[:pos3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
+                      ad_hits.append('ad3-infeed')
+
+              if ad_hits:
+                  changes.append('ads:' + '+'.join(ad_hits))
+              print('Ad containers:', ad_hits)
+
+          # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
           print('Patches applied:', ', '.join(changes))
-          print('index.html size:', os.path.getsize(idx_path), 'bytes')
+
+          os.remove('blog-deploy.zip')
+          with zipfile.ZipFile('blog-deploy.zip', 'w', zipfile.ZIP_DEFLATED) as z:
+              for root, dirs, files in os.walk('extracted'):
+                  for fname in files:
+                      fp = os.path.join(root, fname)
+                      z.write(fp, os.path.relpath(fp, 'extracted'))
+          shutil.rmtree('extracted')
+          print('ZIP repacked:', os.path.getsize('blog-deploy.zip'), 'bytes')
           PYEOF
 
-      - name: Deploy patched files to VPS (Nginx document root)
+      - name: Deploy to Hostinger via TUS
+        env:
+          HOSTINGER_TOKEN: ${{ secrets.HOSTINGER_TOKEN }}
         run: |
-          echo "=== Discovering Nginx document root for blog.clubedoscisnes.com ==="
+          python3 << 'PYEOF'
+          import requests, os, sys
 
-          # Method 1: nginx -T (dumps full config) — look for root inside blog's server block
-          ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
-            "nginx -T 2>/dev/null | awk '/server_name.*blog\.clubedoscisnes/{f=1} f && /^\s*root /{gsub(/;/,\"\"); print \$2; exit}'" 2>/dev/null | tr -d '[:space:]')
+          tok = os.environ["HOSTINGER_TOKEN"]
+          zip_path = "blog-deploy.zip"
+          domain   = "blog.clubedoscisnes.com"
+          username = "u759662497"
+          base_url = "https://developers.hostinger.com"
+          hdrs_auth = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
 
-          # Method 2: grep sites-enabled / conf.d
-          if [ -z "$ROOT" ]; then
-            ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
-              "grep -r 'root ' /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2>/dev/null | grep -v '#' | awk -F'root ' '{print \$2}' | awk '{print \$1}' | tr -d ';' | grep -v '^\$' | head -1" 2>/dev/null | tr -d '[:space:]')
-          fi
+          r = requests.post(f"{base_url}/api/hosting/v1/files/upload-urls",
+              headers=hdrs_auth, json={"username": username, "domain": domain}, timeout=30)
+          if r.status_code != 200:
+              print("upload-urls failed:", r.status_code, r.text[:300]); sys.exit(1)
+          creds = r.json()
+          upload_url    = creds.get("url") or creds.get("data", {}).get("url", "")
+          auth_key      = creds.get("auth_key") or creds.get("data", {}).get("auth_key", "")
+          rest_auth_key = creds.get("rest_auth_key") or creds.get("data", {}).get("rest_auth_key", "")
+          print("Credentials OK, upload_url:", upload_url[:60])
 
-          # Method 3: find the directory that has index.html under /opt/blog
-          if [ -z "$ROOT" ]; then
-            ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
-              "for d in /opt/blog/public /opt/blog/dist /opt/blog/out /opt/blog/build /opt/blog/www /opt/blog; do
-                 [ -f \"\$d/index.html\" ] && echo \"\$d\" && break
-               done" 2>/dev/null | tr -d '[:space:]')
-          fi
+          file_size  = os.path.getsize(zip_path)
+          target_url = f"{upload_url.rstrip('/')}/blog-deploy.zip?override=true"
+          up_hdrs    = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
+                        "upload-length": str(file_size), "upload-offset": "0"}
 
-          if [ -z "$ROOT" ]; then
-            echo "ERROR: Could not determine Nginx document root. SSH dump:"
-            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
-              "ls /opt/blog/ 2>/dev/null; nginx -T 2>/dev/null | grep -E 'server_name|root ' | head -20"
-            exit 1
-          fi
+          r2 = requests.post(target_url, headers=up_hdrs, data=b"", timeout=30)
+          if r2.status_code != 201:
+              print("Slot failed:", r2.status_code, r2.text[:100]); sys.exit(1)
+          print("Upload slot created (201)")
 
-          echo "Nginx document root: $ROOT"
+          with open(zip_path, "rb") as f: file_data = f.read()
+          patch_hdrs = {"X-Auth": auth_key, "X-Auth-Rest": rest_auth_key,
+                        "Content-Type": "application/offset+octet-stream",
+                        "Upload-Offset": "0", "Tus-Resumable": "1.0.0",
+                        "upload-length": str(file_size)}
+          r3 = requests.patch(target_url, headers=patch_hdrs, data=file_data, timeout=120)
+          if r3.status_code not in (200, 204):
+              print("TUS PATCH failed:", r3.status_code, r3.text[:100]); sys.exit(1)
+          print("Upload complete (", r3.status_code, ")")
 
-          # Ensure assets directory exists on VPS
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            ssh -o StrictHostKeyChecking=no root@69.62.99.164 "mkdir -p $ROOT/assets"
-
-          # SCP patched index.html to VPS
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            scp -o StrictHostKeyChecking=no \
-            extracted/index.html \
-            root@69.62.99.164:$ROOT/index.html
-          echo "Uploaded index.html ($(wc -c < extracted/index.html) bytes)"
-
-          # SCP diagnostico-popup.js to VPS
-          if [ -f extracted/assets/diagnostico-popup.js ]; then
-            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-              scp -o StrictHostKeyChecking=no \
-              extracted/assets/diagnostico-popup.js \
-              root@69.62.99.164:$ROOT/assets/diagnostico-popup.js
-            echo "Uploaded diagnostico-popup.js"
-          fi
-
-          # Verify patch landed on VPS
-          HITS=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
-            "grep -c 'cdc-patch-css' $ROOT/index.html 2>/dev/null || echo 0" | tr -d '[:space:]')
-          echo "cdc-patch-css occurrences on VPS file: $HITS"
-
-          MINUTOS=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
-            "grep -c 'minutos de leitura' $ROOT/index.html 2>/dev/null || echo 0" | tr -d '[:space:]')
-          echo "minutos de leitura occurrences on VPS file: $MINUTOS"
-
-          if [ "$HITS" -gt 0 ] && [ "$MINUTOS" -gt 0 ]; then
-            echo "Patch verified on VPS file"
-          else
-            echo "WARNING: patch verification failed (cdc-patch-css=$HITS, minutos=$MINUTOS)"
-            exit 1
-          fi
-
-      - name: Verify live site
-        run: |
-          echo "Waiting 5s for Nginx to serve updated file..."
-          sleep 5
-          LIVE=$(curl -s -H "Cache-Control: no-cache" -H "Pragma: no-cache" https://blog.clubedoscisnes.com/)
-          PATCH=$(echo "$LIVE" | grep -c 'cdc-patch-css' || echo 0)
-          MINUTOS=$(echo "$LIVE" | grep -c 'minutos de leitura' || echo 0)
-          echo "Live site — cdc-patch-css: $PATCH | minutos de leitura: $MINUTOS"
-          if [ "$PATCH" -gt 0 ] && [ "$MINUTOS" -gt 0 ]; then
-            echo "Live site confirmed updated!"
-          else
-            echo "WARNING: live site may be cached or deployment incomplete"
-          fi
+          r4 = requests.post(
+              f"{base_url}/api/hosting/v1/accounts/{username}/websites/{domain}/deploy",
+              headers=hdrs_auth, json={"archive_path": "blog-deploy.zip"}, timeout=60)
+          if r4.status_code not in (200, 201, 202):
+              print("Deploy trigger failed:", r4.status_code, r4.text[:200]); sys.exit(1)
+          print("Deploy triggered:", r4.json())
+          PYEOF
 
       - name: Clear pending flag on VPS
         if: success()
