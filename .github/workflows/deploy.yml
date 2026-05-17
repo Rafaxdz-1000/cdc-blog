@@ -87,17 +87,17 @@ jobs:
           # ── 3. Logo: text → image ────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
-                  r'(<a\b[^>]*href=[\"\\'](https?://(?:www\\.)?clubedoscisnes\\.com/?)[\"\\'][^>]*>)'
+                  r'(<a\b[^>]*href=["\']https?://(?:www\.)?clubedoscisnes\.com/?["\'][^>]*>)'
                   r'((?:(?!</a>).)*)'
                   r'(</a>)',
                   html, re.DOTALL | re.IGNORECASE
               )
-              if m and 'CLUBE' in m.group(3).upper() and '<img' not in m.group(3):
+              if m and 'CLUBE' in m.group(2).upper() and '<img' not in m.group(2):
                   repl = (m.group(1) +
                           '<img src="https://clubedoscisnes.com/assets/images/Logo.png"'
                           ' alt="Clube dos Cisnes" id="cdc-logo-img"'
                           ' style="height:32px;width:auto;" loading="eager">' +
-                          m.group(4))
+                          m.group(3))
                   html = html[:m.start()] + repl + html[m.end():]
                   changes.append('logo-image')
 
