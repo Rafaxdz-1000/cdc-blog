@@ -25,10 +25,10 @@ jobs:
             ./blog-deploy.zip
           echo "ZIP size: $(wc -c < blog-deploy.zip) bytes"
 
-      - name: Patch blog (logo, search, categories, popup, social links, read-time, adsense)
+      - name: Patch blog (logo, search, categories, popup, social links, read-time, adsense, dynamic sections)
         run: |
           python3 << 'PYEOF'
-          import zipfile, os, re, shutil
+          import zipfile, os, re, shutil, json as _json
 
           # ── Extract ──────────────────────────────────────────────────────────
           with zipfile.ZipFile('blog-deploy.zip', 'r') as z:
@@ -263,6 +263,137 @@ jobs:
           if adsense_tag not in html:
               html = html.replace('</head>', adsense_tag + '\n</head>', 1)
               changes.append('adsense-global-tag')
+
+          # ── 11. Rebuild Featured (3-col) + Mais Lidas with most-recent articles
+          _art_metas = []
+          for _dname in sorted(os.listdir('extracted')):
+              _dp = os.path.join('extracted', _dname)
+              if not os.path.isdir(_dp): continue
+              _ai = os.path.join(_dp, 'index.html')
+              if not os.path.exists(_ai): continue
+              with open(_ai, 'r', encoding='utf-8') as _f: _ah = _f.read()
+              _am = None
+              for _jm in re.finditer(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>', _ah, re.DOTALL):
+                  try:
+                      _jd = _json.loads(_jm.group(1))
+                      if _jd.get('@type') == 'Article':
+                          _am = {'title': _jd.get('headline', ''),
+                                 'date': _jd.get('datePublished', ''),
+                                 'description': _jd.get('description', ''),
+                                 'slug': _dname}
+                          break
+                  except: pass
+              if not _am or not _am['title']: continue
+              _bm = re.search(r'class="badge (badge-\w+)[^"]*"[^>]*>\s*([^<]+)</span>', _ah)
+              if _bm:
+                  _am['badge_class'] = _bm.group(1)
+                  _am['category'] = _bm.group(2).strip()
+              else:
+                  _am['badge_class'] = 'badge-ia'; _am['category'] = 'IA'
+              _rtm = re.search(r'(\d+)\s*min\s*de\s*leitura', _ah)
+              _am['read_time'] = _rtm.group(1) if _rtm else '5'
+              _art_metas.append(_am)
+          _art_metas.sort(key=lambda a: a.get('date', ''), reverse=True)
+          print('Dynamic rebuild: {} articles found'.format(len(_art_metas)))
+
+          if len(_art_metas) >= 8:
+              def _e(s):
+                  return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('"', '&quot;')
+
+              def _lc(a, fi=False):
+                  fc = ' pt-0 sm:pt-0' if fi else ''
+                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category'])
+                  t = _e(a['title']); d = _e(a['description'][:120]); rt = a['read_time']
+                  return (f'<a href="/{s}/" class="group flex gap-4 py-5{fc}">'
+                          f'<div class="flex-1 min-w-0 order-first">'
+                          f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
+                          f'<h3 class="font-syne font-bold text-white text-sm leading-snug mb-2 group-hover:text-blue-300 transition-colors">{t}</h3>'
+                          f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-3">{d}</p>'
+                          f'<span class="text-neutral-700 text-[10px] font-mono">{rt} min &bull; {cat}</span>'
+                          f'</div><div class="shrink-0 w-[90px] h-[70px] sm:w-[110px] sm:h-[80px] overflow-hidden">'
+                          f'<img alt="{t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"'
+                          f' loading="lazy" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
+                          f'</div></a>')
+
+              def _hc(a):
+                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category'])
+                  t = _e(a['title']); d = _e(a['description'][:200]); rt = a['read_time']
+                  return (f'<a href="/{s}/" class="group flex flex-col py-5 lg:py-0 lg:px-7 border-y lg:border-y-0 border-white/[0.07] my-2 lg:my-0">'
+                          f'<div class="w-full h-[220px] sm:h-[280px] lg:h-[340px] overflow-hidden mb-5">'
+                          f'<img alt="{t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"'
+                          f' loading="eager" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
+                          f'</div><div class="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:gap-3">'
+                          f'<span class="badge {bc}">{cat}</span>'
+                          f'<span class="text-neutral-600 text-[11px] font-mono">{rt} min de leitura</span>'
+                          f'</div><h2 class="font-syne font-extrabold text-white leading-tight mb-3 group-hover:text-blue-300 transition-colors">{t}</h2>'
+                          f'<p class="text-neutral-400 text-sm leading-relaxed line-clamp-3 mb-4">{d}</p>'
+                          f'<div class="flex items-center justify-between mt-auto">'
+                          f'<div class="flex items-center gap-2">'
+                          f'<div class="w-7 h-7 rounded-full bg-[#2563EB]/20 border border-[#2563EB]/30 flex items-center justify-center text-[9px] font-bold text-[#60A5FA]">RW</div>'
+                          f'<span class="text-neutral-500 text-[11px]">Rafael Willians</span>'
+                          f'</div><span class="text-[#38BDF8] text-xs font-medium flex items-center gap-1.5 group-hover:gap-3 transition-all duration-300">'
+                          f'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'
+                          f'<path d="M5 12h14M12 5l7 7-7 7"/></svg>'
+                          f'</span></div></a>')
+
+              def _rc(a):
+                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category'])
+                  t = _e(a['title']); d = _e(a['description'][:120]); rt = a['read_time']
+                  return (f'<a href="/{s}/" class="group py-4 first:pt-0 block">'
+                          f'<span class="badge {bc} text-[10px] mb-2 inline-block">{cat}</span>'
+                          f'<h3 class="font-syne font-semibold text-white text-sm leading-snug mb-1.5 group-hover:text-blue-300 transition-colors line-clamp-2">{t}</h3>'
+                          f'<p class="text-neutral-500 text-xs leading-relaxed line-clamp-2 mb-2">{d}</p>'
+                          f'<span class="text-neutral-700 text-[10px] font-mono">{rt} min &bull; {cat}</span>'
+                          f'</a>')
+
+              def _ml(a, n):
+                  s = a['slug']; bc = a['badge_class']; cat = _e(a['category']); t = _e(a['title'])
+                  return (f'<a href="/{s}/" class="group flex sm:flex-col gap-4 sm:gap-3 px-0 sm:px-5 py-4 sm:py-0 first:pl-0 hover:bg-white/[0.02] transition-colors">'
+                          f'<div class="shrink-0 relative">'
+                          f'<span class="absolute -top-1 -left-1 z-10 w-5 h-5 bg-[#2563EB] text-white text-[10px] font-bold font-mono flex items-center justify-center">{n}</span>'
+                          f'<div class="w-20 h-14 sm:w-full sm:h-[90px] overflow-hidden">'
+                          f'<img alt="{t}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"'
+                          f' loading="lazy" onerror="this.parentNode.style.background=\'#111936\'" src="/{s}/hero.jpg">'
+                          f'</div></div><div class="flex-1 min-w-0 sm:pt-1">'
+                          f'<span class="badge {bc} text-[9px] mb-1.5 inline-block">{cat}</span>'
+                          f'<p class="text-xs text-neutral-300 leading-snug group-hover:text-white transition-colors line-clamp-3">{t}</p>'
+                          f'</div></a>')
+
+              _nf = ('<div class="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-0 lg:divide-x divide-white/[0.07]">'
+                     '<div class="editorial-left-col flex flex-col divide-y divide-white/[0.07] lg:pr-7">'
+                     + _lc(_art_metas[1], fi=True) + _lc(_art_metas[2]) + _lc(_art_metas[3])
+                     + '</div>' + _hc(_art_metas[0])
+                     + '<div class="hidden lg:flex flex-col divide-y divide-white/[0.07] lg:pl-7">'
+                     + _rc(_art_metas[4]) + _rc(_art_metas[5]) + _rc(_art_metas[6]) + _rc(_art_metas[7])
+                     + '</div></div>')
+
+              _nm = ('<div class="grid grid-cols-1 sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.07]">'
+                     + _ml(_art_metas[0], 1) + _ml(_art_metas[1], 2) + _ml(_art_metas[2], 3)
+                     + _ml(_art_metas[3], 4) + _ml(_art_metas[4], 5) + '</div>')
+
+              def _rg(h, mk, ng):
+                  m = re.search(r'<div[\s>][^>]*' + re.escape(mk), h)
+                  if not m: return h, False
+                  te = h.index('>', m.start()) + 1
+                  dp, pos = 1, te
+                  while pos < len(h) and dp > 0:
+                      od = re.search(r'<div[\s>]', h[pos:])
+                      cd = h.find('</div>', pos)
+                      if cd < 0: break
+                      if od and (pos + od.start()) < cd:
+                          dp += 1; pos += od.start() + 4
+                      else:
+                          dp -= 1
+                          if dp == 0: return h[:m.start()] + ng + h[cd + 6:], True
+                          pos = cd + 6
+                  return h, False
+
+              html, _ok1 = _rg(html, 'lg:grid-cols-[1fr_2fr_1fr]', _nf)
+              html, _ok2 = _rg(html, 'sm:grid-cols-5 divide-y sm:divide-y-0 sm:divide-x', _nm)
+              if _ok1: changes.append('featured-rebuilt')
+              if _ok2: changes.append('mais-lidas-rebuilt')
+          else:
+              print('Skipping dynamic rebuild: need 8+ articles, found {}'.format(len(_art_metas)))
 
           # ── Write patched HTML ────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
