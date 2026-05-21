@@ -98,17 +98,17 @@ jobs:
           # ── 3. Logo: text → image ────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
-                  r'(<a\b[^>]*href=["\'](https?://(?:www\.)?clubedoscisnes\.com/?)["\'][^>]*>)'
+                  r'(<a\b[^>]*href=[\"\']((https?://(?:www\.)?clubedoscisnes\.com/?))[\"\']][^>]*>)'
                   r'((?:(?!</a>).)*)'
                   r'(</a>)',
                   html, re.DOTALL | re.IGNORECASE
               )
-              if m and 'CLUBE' in m.group(3).upper() and '<img' not in m.group(3):
+              if m and 'CLUBE' in m.group(4).upper() and '<img' not in m.group(4):
                   repl = (m.group(1) +
                           '<img src="https://clubedoscisnes.com/assets/images/Logo.png"'
                           ' alt="Clube dos Cisnes" id="cdc-logo-img"'
                           ' style="height:32px;width:auto;" loading="eager">' +
-                          m.group(4))
+                          m.group(5))
                   html = html[:m.start()] + repl + html[m.end():]
                   changes.append('logo-image')
 
@@ -243,7 +243,6 @@ jobs:
                   'document.addEventListener("mouseleave",function h(e){'
                   'if(e.clientY<5){clearTimeout(pt);document.removeEventListener("mouseleave",h);fp();}});'
                   '}'
-                  # Show ad container only when AdSense fills the slot
                   'window.addEventListener("load",function(){'
                   'setTimeout(function(){'
                   'document.querySelectorAll(".cdc-ad-wrap,.cdc-ad-infeed").forEach(function(w){'
@@ -258,15 +257,12 @@ jobs:
               changes.append('js-popup')
 
           # ── 9. Fix read_time display → "X min de leitura" ───────────────────
-          # P1: bare digit
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+)(</span>)',
               r'\1\2 min de leitura\3', html)
-          # P2: "X min" without "de leitura"
           html = re.sub(
               r'(text-neutral-600 text-\[11px\][^"]*">)(\d+ min)(</span>)',
               r'\1\2 de leitura\3', html)
-          # P3: old sidebar "X min • Category" with text-neutral-700 text-[10px]
           html = re.sub(
               r'(<span class="text-neutral-700 text-\[10px\][^"]*">)(\d+) min\s*(?:&bull;|•)\s*[^<]*(</span>)',
               r'<span class="text-neutral-600 text-[11px] font-mono">\2 min de leitura\3', html)
@@ -400,17 +396,11 @@ jobs:
           else:
               print('Skipping dynamic rebuild: need 8+ articles, found {}'.format(len(_art_metas)))
 
-          # ── 12. Ad containers (3 positions, Google AdSense best practices) ────
-          # Design: containers are invisible (display:none) until AdSense fills
-          # the slot — no layout shift, no empty boxes showing on pending account.
-          #
-          # ⚠  TO ACTIVATE: once the AdSense account is approved, create ad units
-          #    at https://adsense.google.com → Anúncios → Por unidade de anúncio
-          #    then replace the empty strings below with the real slot IDs.
+          # ── 12. Ad containers ────────────────────────────────────────────────
           AD_CLIENT = 'ca-pub-4015828754517117'
-          AD_SLOT_H1 = ''   # Position 1 — between Featured and Mais Lidas
-          AD_SLOT_H2 = ''   # Position 2 — between Mais Lidas and Webstories
-          AD_SLOT_IF = ''   # Position 3 — in-feed inside article grid (after 4th card)
+          AD_SLOT_H1 = ''
+          AD_SLOT_H2 = ''
+          AD_SLOT_IF = ''
 
           def _adblock(slot, fmt='auto', extra_cls=''):
               cls = 'cdc-ad-wrap' + (' ' + extra_cls if extra_cls else '')
@@ -429,24 +419,18 @@ jobs:
 
           if 'cdc-ad-wrap' not in html:
               ad_hits = []
-
-              # Position 1 — before "MAIS LIDAS" section
               ml_idx = html.find('MAIS LIDAS')
               if ml_idx > -1:
                   sec1 = html.rfind('<section', 0, ml_idx)
                   if sec1 > -1:
                       html = html[:sec1] + _adblock(AD_SLOT_H1) + '\n' + html[sec1:]
                       ad_hits.append('ad1-before-mais-lidas')
-
-              # Position 2 — before "Webstories" section (re-search in updated html)
               ws_idx = html.find('Webstories')
               if ws_idx > -1:
                   sec2 = html.rfind('<section', 0, ws_idx)
                   if sec2 > -1:
                       html = html[:sec2] + _adblock(AD_SLOT_H2) + '\n' + html[sec2:]
                       ad_hits.append('ad2-before-webstories')
-
-              # Position 3 — in-feed after 4th article card in 2-col grid
               grid_m = re.search(
                   r'<div[^>]+class="[^"]*grid[^"]*grid-cols-1 sm:grid-cols-2[^"]*"[^>]*>', html)
               if grid_m:
@@ -460,7 +444,6 @@ jobs:
                   if count == 4:
                       html = html[:pos3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
                       ad_hits.append('ad3-infeed')
-
               if ad_hits:
                   changes.append('ads:' + '+'.join(ad_hits))
               print('Ad containers:', ad_hits)
@@ -532,10 +515,10 @@ jobs:
           print("Deploy triggered:", r4.json())
           PYEOF
 
-      - name: Clear pending flag on VPS
+      - name: Clear pending flag on VPS + ensure ads.txt
         if: success()
         run: |
           sshpass -p "${{ secrets.VPS_PASSWORD }}" \
             ssh -o StrictHostKeyChecking=no \
             root@69.62.99.164 \
-            "rm -f /opt/blog/.pending-deploy && echo flag_cleared"
+            "rm -f /opt/blog/.pending-deploy && echo 'google.com, pub-4015828754517117, DIRECT, f08c47fec0942fa0' > /opt/blog/ads.txt && chmod 644 /opt/blog/ads.txt && echo flag_cleared_and_ads_txt_ok"
