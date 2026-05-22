@@ -134,8 +134,8 @@ jobs:
                   abs_start = max(0, pos - 800) + last.start()
                   rest = html[abs_start:]
                   depth = 0; end_off = None
-                  for tm in re.finditer(r'<(/?)' + tag_name + r'[\s>]', rest, re.IGNORECASE):
-                      if tm.group(1) == '/': depth -= 1
+                  for tm in re.finditer(r'</?' + tag_name + r'[\s>]', rest, re.IGNORECASE):
+                      if tm.group(0).startswith('</'): depth -= 1
                       else: depth += 1
                       if depth == 0:
                           end_off = tm.end(); break
@@ -496,6 +496,29 @@ jobs:
           shutil.rmtree('extracted')
           print('ZIP repacked:', os.path.getsize('blog-deploy.zip'), 'bytes')
           PYEOF
+
+      - name: Push patched index.html to VPS nginx root
+        run: |
+          # Extract patched homepage from zip
+          unzip -p blog-deploy.zip index.html > patched-index.html
+          echo "Patched HTML size: $(wc -c < patched-index.html) bytes"
+
+          # Detect nginx docroot for blog.clubedoscisnes.com dynamically
+          BLOG_ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+            "nginx -T 2>/dev/null | awk 'BEGIN{f=0} /blog\\.clubedoscisnes\\.com/{f=1} f && /[[:space:]]root /{gsub(/;/,\"\",\$2); print \$2; exit}'" 2>/dev/null || echo "")
+
+          if [ -z "$BLOG_ROOT" ]; then
+            echo "nginx root not detected, falling back to /opt/blog"
+            BLOG_ROOT="/opt/blog"
+          fi
+          echo "VPS nginx root: $BLOG_ROOT"
+
+          # Copy patched index.html to VPS
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            scp -o StrictHostKeyChecking=no \
+            patched-index.html "root@69.62.99.164:${BLOG_ROOT}/index.html"
+          echo "✓ Patched index.html → VPS:${BLOG_ROOT}/index.html"
 
       - name: Deploy to Hostinger via TUS
         env:
