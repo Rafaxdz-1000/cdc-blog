@@ -184,7 +184,7 @@ jobs:
                   '<div id="cdc-search-bar" style="margin-bottom:1.25rem;display:flex;'
                   'align-items:center;gap:1rem;flex-wrap:wrap;">'
                   '<input id="cdc-search" type="search" placeholder="Buscar artigos..."'
-                  ' autocomplete="off" aria-label="Buscar artigos">'
+                  ' autocomplete="off" aria-label="Buscar artigos no blog">'
                   '<span id="cdc-count" style="font-size:.7rem;color:#64748b;font-family:monospace;"></span>'
                   '</div>'
                   '<div class="cat-tabs-scroll" style="margin-bottom:1rem;">'
@@ -406,15 +406,21 @@ jobs:
               print('Skipping dynamic rebuild: need 8+ articles, found {}'.format(len(_art_metas)))
 
           # ── 12. Ad containers ────────────────────────────────────────────────
-          # NOTE: sentinel uses aria-label="Publicidade" — only in container body HTML, never in CSS
-          # (do NOT use 'cdc-ad-placeholder' as sentinel: Step 2 injects that string in the CSS block)
+          # Sentinel: data-cdc-ads-v4="1" — unique to this step, never present in n8n output
           AD_CLIENT = 'ca-pub-4015828754517117'
           AD_SLOT_H1 = ''
           AD_SLOT_H2 = ''
           AD_SLOT_IF = ''
 
-          def _adblock(slot, fmt='auto', extra_cls=''):
+          _has_aria_pub  = 'aria-label="Publicidade"' in html
+          _has_data_slot = 'data-ad-slot' in html
+          _has_cdc_v4    = 'data-cdc-ads-v4' in html
+          print('[S12] aria_pub=%r data_slot=%r cdc_v4=%r html_len=%d' % (
+              _has_aria_pub, _has_data_slot, _has_cdc_v4, len(html)))
+
+          def _adblock(slot, fmt='auto', extra_cls='', first=False):
               cls = 'cdc-ad-wrap' + (' ' + extra_cls if extra_cls else '')
+              v4  = ' data-cdc-ads-v4="1"' if first else ''
               if slot:
                   inner = (
                       f'<ins class="adsbygoogle"'
@@ -427,25 +433,30 @@ jobs:
                   )
               else:
                   cls += ' cdc-ad-placeholder'
-                  inner = '<span class="cdc-ad-pending">Anúncio em breve</span>'
+                  inner = '<span class="cdc-ad-pending">Anuncio em breve</span>'
               return (
-                  f'<div class="{cls}" aria-label="Publicidade" role="complementary">'
+                  f'<div class="{cls}" aria-label="Publicidade" role="complementary"{v4}>'
                   f'<span class="cdc-ad-label">Publicidade</span>'
                   f'{inner}'
                   f'</div>'
               )
 
-          if 'aria-label="Publicidade"' not in html and 'data-ad-slot' not in html:
+          if 'data-cdc-ads-v4' not in html:
+              print('[S12] SENTINEL PASS — running injection')
               ad_hits = []
               ml_idx = html.find('MAIS LIDAS')
+              print('[S12] ml_idx=%d' % ml_idx)
               if ml_idx > -1:
                   sec1 = html.rfind('<section', 0, ml_idx)
+                  print('[S12] sec1=%d' % sec1)
                   if sec1 > -1:
-                      html = html[:sec1] + _adblock(AD_SLOT_H1) + '\n' + html[sec1:]
+                      html = html[:sec1] + _adblock(AD_SLOT_H1, first=True) + '\n' + html[sec1:]
                       ad_hits.append('ad1-before-mais-lidas')
-              ws_idx = html.find('Webstories')
+              ws_idx = html.find('Webstories')  # recalc after ad1 insert
+              print('[S12] ws_idx=%d' % ws_idx)
               if ws_idx > -1:
                   sec2 = html.rfind('<section', 0, ws_idx)
+                  print('[S12] sec2=%d' % sec2)
                   if sec2 > -1:
                       html = html[:sec2] + _adblock(AD_SLOT_H2) + '\n' + html[sec2:]
                       ad_hits.append('ad2-before-webstories')
@@ -459,12 +470,17 @@ jobs:
                       if art_end == -1: break
                       pos3 = art_end + len('</article>')
                       count += 1
+                  print('[S12] grid_found=True articles=%d' % count)
                   if count == 4:
                       html = html[:pos3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
                       ad_hits.append('ad3-infeed')
+              else:
+                  print('[S12] grid_found=False')
               if ad_hits:
                   changes.append('ads:' + '+'.join(ad_hits))
               print('Ad containers:', ad_hits)
+          else:
+              print('[S12] SENTINEL FAIL — data-cdc-ads-v4 already present')
 
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
