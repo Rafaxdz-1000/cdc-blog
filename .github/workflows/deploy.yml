@@ -499,13 +499,11 @@ jobs:
                               _d3 -= 1
                               if _d3 == 0:
                                   _ins3 = _cd + 6
-                                  if _ins3 < len(html) and html[_ins3] == '
-': _ins3 += 1
+                                  if _ins3 < len(html) and html[_ins3] == '\n': _ins3 += 1
                                   break
                               _p3 = _cd + 6
                       if _ins3 > -1:
-                          html = html[:_ins3] + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + '
-' + html[_ins3:]
+                          html = html[:_ins3] + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + '\n' + html[_ins3:]
                           ad_hits.append('ad3-after-redes-sociais')
                           print('[S12] ad3 after Redes Sociais at', _ins3)
                       else:
@@ -525,8 +523,7 @@ jobs:
                       pos3 = art_end + len('</article>')
                       count += 1
                   if count == 4:
-                      html = html[:pos3] + '
-' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
+                      html = html[:pos3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
                       ad_hits.append('ad3-infeed')
           if ad_hits:
               changes.append('ads:' + '+'.join(ad_hits))
