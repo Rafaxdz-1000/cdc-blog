@@ -107,7 +107,7 @@ jobs:
           # ── 3. Logo: text → image ────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
-                  r'(<a\b[^>]*href=[\"\']((?:https?://(?:www\.)?clubedoscisnes\.com/?))[\"\'][^>]*>)'
+                  r'(<a\b[^>]*href=[\"\\']((?:https?://(?:www\.)?clubedoscisnes\.com/?))[\"\\'][^>]*>)'
                   r'((?:(?!</a>).)*)'
                   r'(</a>)',
                   html, re.DOTALL | re.IGNORECASE
@@ -406,7 +406,8 @@ jobs:
               print('Skipping dynamic rebuild: need 8+ articles, found {}'.format(len(_art_metas)))
 
           # ── 12. Ad containers ────────────────────────────────────────────────
-          # NOTE: sentinel is 'cdc-ad-placeholder' (not 'cdc-ad-wrap' which is in CSS → always present)
+          # NOTE: sentinel uses aria-label="Publicidade" — only in container body HTML, never in CSS
+          # (do NOT use 'cdc-ad-placeholder' as sentinel: Step 2 injects that string in the CSS block)
           AD_CLIENT = 'ca-pub-4015828754517117'
           AD_SLOT_H1 = ''
           AD_SLOT_H2 = ''
@@ -434,7 +435,7 @@ jobs:
                   f'</div>'
               )
 
-          if 'cdc-ad-placeholder' not in html and 'data-ad-slot' not in html:
+          if 'aria-label="Publicidade"' not in html and 'data-ad-slot' not in html:
               ad_hits = []
               ml_idx = html.find('MAIS LIDAS')
               if ml_idx > -1:
