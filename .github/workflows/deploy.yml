@@ -79,18 +79,27 @@ jobs:
                      "outline:none;transition:border-color .2s;width:100%;max-width:260px}\n"
                      "#cdc-search:focus{border-color:rgba(37,99,235,.5)}\n"
                      "#cdc-search::placeholder{color:#4b5563}\n"
-                     "/* Ad containers — hidden until AdSense fills the slot */\n"
-                     ".cdc-ad-wrap{display:none;width:100%;padding:1.75rem 1rem;"
-                     "text-align:center;border-top:1px solid rgba(255,255,255,0.05);"
-                     "border-bottom:1px solid rgba(255,255,255,0.05);box-sizing:border-box}\n"
-                     ".cdc-ad-wrap.has-ad{display:block}\n"
+                     "/* Ad containers */\n"
+                     ".cdc-ad-wrap{display:flex;flex-direction:column;align-items:center;"
+                     "justify-content:center;width:100%;min-height:90px;padding:1.5rem 1rem;"
+                     "text-align:center;box-sizing:border-box;margin:1.5rem 0;"
+                     "border-top:1px solid rgba(37,99,235,.08);"
+                     "border-bottom:1px solid rgba(37,99,235,.08)}\n"
+                     ".cdc-ad-placeholder{background:rgba(37,99,235,.03);"
+                     "border:1px dashed rgba(37,99,235,.12);border-radius:2px}\n"
+                     ".cdc-ad-wrap.has-ad{background:none;border-color:rgba(255,255,255,.05)}\n"
                      ".cdc-ad-label{display:block;font-size:.58rem;letter-spacing:.2em;"
-                     "text-transform:uppercase;color:rgba(255,255,255,0.2);"
-                     "font-family:monospace;margin-bottom:.75rem}\n"
-                     ".cdc-ad-infeed{grid-column:1/-1;display:none;padding:1.5rem 0;"
-                     "border-top:1px solid rgba(255,255,255,0.05);"
-                     "border-bottom:1px solid rgba(255,255,255,0.05);text-align:center}\n"
-                     ".cdc-ad-infeed.has-ad{display:block}\n"
+                     "text-transform:uppercase;color:rgba(255,255,255,.18);"
+                     "font-family:monospace;margin-bottom:.5rem}\n"
+                     ".cdc-ad-pending{font-size:.65rem;color:rgba(37,99,235,.45);"
+                     "font-family:monospace;letter-spacing:.05em}\n"
+                     ".cdc-ad-infeed{grid-column:1/-1;display:flex;flex-direction:column;"
+                     "align-items:center;justify-content:center;min-height:90px;"
+                     "padding:1.5rem 0;text-align:center;margin:.5rem 0;"
+                     "background:rgba(37,99,235,.03);"
+                     "border-top:1px solid rgba(37,99,235,.08);"
+                     "border-bottom:1px solid rgba(37,99,235,.08)}\n"
+                     ".cdc-ad-infeed.has-ad{background:none}\n"
                      "</style>")
               html = html.replace('</head>', css + '\n</head>', 1)
               changes.append('extra-css')
@@ -98,17 +107,17 @@ jobs:
           # ── 3. Logo: text → image ────────────────────────────────────────────
           if 'cdc-logo-img' not in html:
               m = re.search(
-                  r'(<a\b[^>]*href=[\"\']((https?://(?:www\.)?clubedoscisnes\.com/?))[\"\']][^>]*>)'
+                  r'(<a\b[^>]*href=[\"\']((?:https?://(?:www\.)?clubedoscisnes\.com/?))[\"\'][^>]*>)'
                   r'((?:(?!</a>).)*)'
                   r'(</a>)',
                   html, re.DOTALL | re.IGNORECASE
               )
-              if m and 'CLUBE' in m.group(4).upper() and '<img' not in m.group(4):
+              if m and 'CLUBE' in m.group(3).upper() and '<img' not in m.group(3):
                   repl = (m.group(1) +
                           '<img src="https://clubedoscisnes.com/assets/images/Logo.png"'
                           ' alt="Clube dos Cisnes" id="cdc-logo-img"'
                           ' style="height:32px;width:auto;" loading="eager">' +
-                          m.group(5))
+                          m.group(4))
                   html = html[:m.start()] + repl + html[m.end():]
                   changes.append('logo-image')
 
@@ -247,7 +256,7 @@ jobs:
                   'setTimeout(function(){'
                   'document.querySelectorAll(".cdc-ad-wrap,.cdc-ad-infeed").forEach(function(w){'
                   'var ins=w.querySelector("ins.adsbygoogle");'
-                  'if(ins&&ins.offsetHeight>0)w.classList.add("has-ad");'
+                  'if(ins&&ins.offsetHeight>0){w.classList.add("has-ad");w.classList.remove("cdc-ad-placeholder");}'
                   '});'
                   '},2500);});'
                   '})();</script>\n'
@@ -397,6 +406,7 @@ jobs:
               print('Skipping dynamic rebuild: need 8+ articles, found {}'.format(len(_art_metas)))
 
           # ── 12. Ad containers ────────────────────────────────────────────────
+          # NOTE: sentinel is 'cdc-ad-placeholder' (not 'cdc-ad-wrap' which is in CSS → always present)
           AD_CLIENT = 'ca-pub-4015828754517117'
           AD_SLOT_H1 = ''
           AD_SLOT_H2 = ''
@@ -404,20 +414,27 @@ jobs:
 
           def _adblock(slot, fmt='auto', extra_cls=''):
               cls = 'cdc-ad-wrap' + (' ' + extra_cls if extra_cls else '')
+              if slot:
+                  inner = (
+                      f'<ins class="adsbygoogle"'
+                      f' style="display:block"'
+                      f' data-ad-client="{AD_CLIENT}"'
+                      f' data-ad-slot="{slot}"'
+                      f' data-ad-format="{fmt}"'
+                      f' data-full-width-responsive="true"></ins>'
+                      f'<script>(adsbygoogle=window.adsbygoogle||[]).push({{}});</script>'
+                  )
+              else:
+                  cls += ' cdc-ad-placeholder'
+                  inner = '<span class="cdc-ad-pending">Anúncio em breve</span>'
               return (
                   f'<div class="{cls}" aria-label="Publicidade" role="complementary">'
                   f'<span class="cdc-ad-label">Publicidade</span>'
-                  f'<ins class="adsbygoogle"'
-                  f' style="display:block"'
-                  f' data-ad-client="{AD_CLIENT}"'
-                  f' data-ad-slot="{slot}"'
-                  f' data-ad-format="{fmt}"'
-                  f' data-full-width-responsive="true"></ins>'
-                  f'<script>(adsbygoogle=window.adsbygoogle||[]).push({{}});</script>'
+                  f'{inner}'
                   f'</div>'
               )
 
-          if 'cdc-ad-wrap' not in html:
+          if 'cdc-ad-placeholder' not in html and 'data-ad-slot' not in html:
               ad_hits = []
               ml_idx = html.find('MAIS LIDAS')
               if ml_idx > -1:
