@@ -480,20 +480,40 @@ jobs:
               if sec2 > -1:
                   html = html[:sec2] + _adblock(AD_SLOT_H2) + '\n' + html[sec2:]
                   ad_hits.append('ad2-before-webstories')
-          rs_idx = html.find('REDES SOCIAIS')
-          if rs_idx == -1:
-              rs_idx = html.lower().find('redes sociais')
+          # ad3: find sidebar-widget div containing Redes Sociais, insert after its closing </div>
+          rs_idx = html.lower().find('redes sociais')
           if rs_idx > -1:
-              end_sec3 = html.find('</section>', rs_idx)
-              if end_sec3 > -1:
-                  ins3 = end_sec3 + len('</section>')
-                  html = html[:ins3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[ins3:]
-                  ad_hits.append('ad3-after-redes-sociais')
-                  print('[S12] ad3 inserted after Redes Sociais')
+              sw_cls = html.rfind('sidebar-widget', 0, rs_idx)
+              if sw_cls > -1:
+                  div_start = html.rfind('<div', 0, sw_cls)
+                  if div_start > -1:
+                      te = html.index('>', div_start) + 1
+                      _d3 = 1; _p3 = te; _ins3 = -1
+                      while _p3 < len(html) and _d3 > 0:
+                          _od = html.find('<div', _p3)
+                          _cd = html.find('</div>', _p3)
+                          if _cd < 0: break
+                          if _od >= 0 and _od < _cd:
+                              _d3 += 1; _p3 = _od + 4
+                          else:
+                              _d3 -= 1
+                              if _d3 == 0:
+                                  _ins3 = _cd + 6
+                                  if _ins3 < len(html) and html[_ins3] == '
+': _ins3 += 1
+                                  break
+                              _p3 = _cd + 6
+                      if _ins3 > -1:
+                          html = html[:_ins3] + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + '
+' + html[_ins3:]
+                          ad_hits.append('ad3-after-redes-sociais')
+                          print('[S12] ad3 after Redes Sociais at', _ins3)
+                      else:
+                          print('[S12] closing </div> for Redes Sociais not found')
               else:
-                  print('[S12] REDES SOCIAIS found but </section> not after it')
+                  print('[S12] sidebar-widget not found before Redes Sociais')
           else:
-              print('[S12] REDES SOCIAIS not found — fallback to grid')
+              print('[S12] Redes Sociais not found — fallback to grid')
               grid_m = re.search(
                   r'<div[^>]+class=\"[^\"]*grid[^\"]*grid-cols-1 sm:grid-cols-2[^\"]*\"[^>]*>', html)
               if grid_m:
@@ -505,7 +525,8 @@ jobs:
                       pos3 = art_end + len('</article>')
                       count += 1
                   if count == 4:
-                      html = html[:pos3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
+                      html = html[:pos3] + '
+' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
                       ad_hits.append('ad3-infeed')
           if ad_hits:
               changes.append('ads:' + '+'.join(ad_hits))
