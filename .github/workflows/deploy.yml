@@ -460,22 +460,33 @@ jobs:
                   if sec2 > -1:
                       html = html[:sec2] + _adblock(AD_SLOT_H2) + '\n' + html[sec2:]
                       ad_hits.append('ad2-before-webstories')
-              grid_m = re.search(
-                  r'<div[^>]+class="[^"]*grid[^"]*grid-cols-1 sm:grid-cols-2[^"]*"[^>]*>', html)
-              if grid_m:
-                  pos3 = grid_m.end()
-                  count = 0
-                  while count < 4:
-                      art_end = html.find('</article>', pos3)
-                      if art_end == -1: break
-                      pos3 = art_end + len('</article>')
-                      count += 1
-                  print('[S12] grid_found=True articles=%d' % count)
-                  if count == 4:
-                      html = html[:pos3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
-                      ad_hits.append('ad3-infeed')
+              rs_idx = html.find('REDES SOCIAIS')
+              if rs_idx == -1:
+                  rs_idx = html.lower().find('redes sociais')
+              if rs_idx > -1:
+                  end_sec3 = html.find('</section>', rs_idx)
+                  if end_sec3 > -1:
+                      ins3 = end_sec3 + len('</section>')
+                      html = html[:ins3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[ins3:]
+                      ad_hits.append('ad3-after-redes-sociais')
+                      print('[S12] ad3 inserted after Redes Sociais')
+                  else:
+                      print('[S12] REDES SOCIAIS found but </section> not after it')
               else:
-                  print('[S12] grid_found=False')
+                  print('[S12] REDES SOCIAIS not found — fallback to grid')
+                  grid_m = re.search(
+                      r'<div[^>]+class=\"[^\"]*grid[^\"]*grid-cols-1 sm:grid-cols-2[^\"]*\"[^>]*>', html)
+                  if grid_m:
+                      pos3 = grid_m.end()
+                      count = 0
+                      while count < 4:
+                          art_end = html.find('</article>', pos3)
+                          if art_end == -1: break
+                          pos3 = art_end + len('</article>')
+                          count += 1
+                      if count == 4:
+                          html = html[:pos3] + '\n' + _adblock(AD_SLOT_IF, fmt='fluid', extra_cls='cdc-ad-infeed') + html[pos3:]
+                          ad_hits.append('ad3-infeed')
               if ad_hits:
                   changes.append('ads:' + '+'.join(ad_hits))
               print('Ad containers:', ad_hits)
