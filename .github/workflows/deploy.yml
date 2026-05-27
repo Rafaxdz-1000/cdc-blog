@@ -688,6 +688,13 @@ jobs:
             ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
             "cd ${BLOG_ROOT} && mv vps-robots.txt robots.txt && mv vps-sitemap.xml sitemap.xml && echo ok"
           echo "✓ robots.txt + sitemap.xml → VPS:${BLOG_ROOT}/"
+          # Sync patched articles and assets to VPS (without --delete: preserves articles not in current zip)
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            rsync -av \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            extracted/ \
+            "root@69.62.99.164:${BLOG_ROOT}/"
+          echo "✓ Patched articles + assets → VPS:${BLOG_ROOT}/"
 
       - name: Deploy to Hostinger via TUS
         env:
@@ -748,3 +755,4 @@ jobs:
             ssh -o StrictHostKeyChecking=no \
             root@69.62.99.164 \
             "rm -f /opt/blog/.pending-deploy && echo 'google.com, pub-4015828754517117, DIRECT, f08c47fec0942fa0' > /opt/blog/ads.txt && chmod 644 /opt/blog/ads.txt && echo flag_cleared_and_ads_txt_ok"
+
