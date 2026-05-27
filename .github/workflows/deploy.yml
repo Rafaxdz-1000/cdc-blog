@@ -529,6 +529,117 @@ jobs:
               changes.append('ads:' + '+'.join(ad_hits))
           print('Ad containers:', ad_hits)
 
+
+          # ── 13. LGPD Cookie Consent — homepage + todos os artigos ────────────────
+          _lgpd_css = (
+              '<style id="cdc-lgpd-css">'
+              '#cdc-cb{position:fixed;bottom:0;left:0;right:0;z-index:9999;'
+              'background:rgba(8,11,24,.97);backdrop-filter:blur(12px);'
+              'border-top:1px solid rgba(37,99,235,.2);padding:1rem 1.5rem;'
+              'display:none;align-items:center;justify-content:space-between;'
+              'flex-wrap:wrap;gap:.75rem;font-family:Inter,sans-serif}'
+              '#cdc-cb p{color:#94a3b8;margin:0;flex:1;min-width:200px;font-size:.78rem;line-height:1.55}'
+              '#cdc-cb a{color:#60a5fa;text-decoration:underline}'
+              '.cdc-cbb{padding:.45rem 1.1rem;border-radius:3px;cursor:pointer;'
+              'font-size:.75rem;font-weight:600;border:none;font-family:inherit;transition:all .2s}'
+              '.cdc-cba{background:#2563eb;color:#fff}.cdc-cba:hover{background:#1d4ed8}'
+              '.cdc-cbn{background:transparent;color:#64748b;border:1px solid rgba(255,255,255,.12)}'
+              '</style>'
+          )
+          _lgpd_html = (
+              '<div id="cdc-cb" role="dialog" aria-label="Aviso de privacidade e cookies">'
+              '<p>Usamos cookies para personalizar an\u00fancios e analisar o tr\u00e1fego.'
+              ' Ao continuar, voc\u00ea concorda com nossa'
+              ' <a href="https://clubedoscisnes.com/privacidade/" target="_blank" rel="noopener">Pol\u00edtica de Privacidade</a>.</p>'
+              '<div style="display:flex;gap:.6rem;flex-shrink:0">'
+              '<button class="cdc-cbb cdc-cbn" onclick="cdcCB(0)">S\u00f3 essenciais</button>'
+              '<button class="cdc-cbb cdc-cba" onclick="cdcCB(1)">Aceitar todos</button>'
+              '</div></div>'
+          )
+          _lgpd_js = (
+              '<script id="cdc-lgpd">(function(){'
+              'var K="cdc_cv2";'
+              'if(!localStorage.getItem(K)){'
+              'function _sh(){var b=document.getElementById("cdc-cb");if(b)b.style.display="flex";}'
+              'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",_sh);'
+              'else _sh();}'
+              'window.cdcCB=function(v){localStorage.setItem(K,v?"ok":"min");'
+              'var b=document.getElementById("cdc-cb");if(b)b.style.display="none";};'
+              '})();<\/script>'
+          )
+          if 'cdc-lgpd-css' not in html:
+              html = html.replace('</head>', _lgpd_css + '\n</head>', 1)
+              html = html.replace('</body>', _lgpd_html + '\n' + _lgpd_js + '\n</body>', 1)
+              changes.append('lgpd-home')
+          _art_lgpd = 0
+          for _dn13 in sorted(os.listdir('extracted')):
+              _dp13 = os.path.join('extracted', _dn13)
+              if not os.path.isdir(_dp13): continue
+              _ap13 = os.path.join(_dp13, 'index.html')
+              if not os.path.exists(_ap13): continue
+              with open(_ap13, 'r', encoding='utf-8') as _f13: _ah13 = _f13.read()
+              if 'cdc-lgpd-css' in _ah13: continue
+              _ah13 = _ah13.replace('</head>', _lgpd_css + '\n</head>', 1)
+              _ah13 = _ah13.replace('</body>', _lgpd_html + '\n' + _lgpd_js + '\n</body>', 1)
+              with open(_ap13, 'w', encoding='utf-8') as _f13: _f13.write(_ah13)
+              _art_lgpd += 1
+          print('[S13] LGPD consent: homepage+articles=%d' % _art_lgpd)
+          changes.append('lgpd-arts:%d' % _art_lgpd)
+
+          # ── 14. robots.txt + sitemap.xml ───────────────────────────────────────────────────────────────────
+          import datetime as _dt14
+          _robots14 = 'User-agent: *\nAllow: /\nSitemap: https://blog.clubedoscisnes.com/sitemap.xml\n'
+          with open('extracted/robots.txt', 'w') as _fr14: _fr14.write(_robots14)
+          _today14 = _dt14.date.today().isoformat()
+          _surls14 = ['https://blog.clubedoscisnes.com/']
+          for _dn14 in sorted(os.listdir('extracted')):
+              if os.path.isdir(os.path.join('extracted', _dn14)) and \
+                 os.path.exists(os.path.join('extracted', _dn14, 'index.html')):
+                  _surls14.append('https://blog.clubedoscisnes.com/%s/' % _dn14)
+          _sm14 = ['<?xml version="1.0" encoding="UTF-8"?>',
+                   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+          for _u14 in _surls14:
+              _pri14 = '1.0' if _u14 == 'https://blog.clubedoscisnes.com/' else '0.8'
+              _sm14.append('  <url><loc>%s</loc><lastmod>%s</lastmod><changefreq>daily</changefreq><priority>%s</priority></url>'
+                           % (_u14, _today14, _pri14))
+          _sm14.append('</urlset>')
+          with open('extracted/sitemap.xml', 'w', encoding='utf-8') as _fs14: _fs14.write('\n'.join(_sm14))
+          print('[S14] robots.txt + sitemap.xml: %d URLs' % len(_surls14))
+          changes.append('sitemap:%d' % len(_surls14))
+
+          # ── 15. Artigos — AdSense meta + script + canonical + meta desc ───────────────
+          _ads_tag15 = ('<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
+                        '?client=ca-pub-4015828754517117" crossorigin="anonymous"></script>')
+          _ads_meta15 = '<meta name="google-adsense-account" content="ca-pub-4015828754517117">'
+          _art15 = 0
+          for _dn15 in sorted(os.listdir('extracted')):
+              _dp15 = os.path.join('extracted', _dn15)
+              if not os.path.isdir(_dp15): continue
+              _ap15 = os.path.join(_dp15, 'index.html')
+              if not os.path.exists(_ap15): continue
+              with open(_ap15, 'r', encoding='utf-8') as _f15: _ah15 = _f15.read()
+              _ch15 = False
+              if _ads_meta15 not in _ah15:
+                  _ah15 = _ah15.replace('</head>', _ads_meta15 + '\n</head>', 1); _ch15 = True
+              if 'adsbygoogle.js' not in _ah15:
+                  _ah15 = _ah15.replace('</head>', _ads_tag15 + '\n</head>', 1); _ch15 = True
+              if '<link rel="canonical"' not in _ah15:
+                  _cano15 = '<link rel="canonical" href="https://blog.clubedoscisnes.com/%s/">' % _dn15
+                  _ah15 = _ah15.replace('</head>', _cano15 + '\n</head>', 1); _ch15 = True
+              if '<meta name="description"' not in _ah15:
+                  _dm15 = re.search(r'"description"\s*:\s*"([^"]{20,})"', _ah15)
+                  _hm15 = re.search(r'"headline"\s*:\s*"([^"]{10,})"', _ah15)
+                  _dc15 = (_dm15.group(1)[:155] if _dm15 else (_hm15.group(1)[:155] if _hm15 else ''))
+                  if _dc15:
+                      _dc15 = _dc15.replace('"', '&quot;')
+                      _ah15 = _ah15.replace('</head>',
+                          '<meta name="description" content="%s">\n</head>' % _dc15, 1)
+                      _ch15 = True
+              if _ch15:
+                  with open(_ap15, 'w', encoding='utf-8') as _f15: _f15.write(_ah15)
+                  _art15 += 1
+          print('[S15] article SEO patched: %d pages' % _art15)
+          changes.append('art-seo:%d' % _art15)
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
@@ -566,6 +677,17 @@ jobs:
             scp -o StrictHostKeyChecking=no \
             patched-index.html "root@69.62.99.164:${BLOG_ROOT}/index.html"
           echo "✓ Patched index.html → VPS:${BLOG_ROOT}/index.html"
+          # Push robots.txt + sitemap.xml to VPS
+          unzip -p blog-deploy.zip robots.txt > /tmp/vps-robots.txt 2>/dev/null || echo -e "User-agent: *\nAllow: /" > /tmp/vps-robots.txt
+          unzip -p blog-deploy.zip sitemap.xml > /tmp/vps-sitemap.xml 2>/dev/null || true
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            scp -o StrictHostKeyChecking=no \
+            /tmp/vps-robots.txt /tmp/vps-sitemap.xml \
+            "root@69.62.99.164:${BLOG_ROOT}/"
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+            "cd ${BLOG_ROOT} && mv vps-robots.txt robots.txt && mv vps-sitemap.xml sitemap.xml && echo ok"
+          echo "✓ robots.txt + sitemap.xml → VPS:${BLOG_ROOT}/"
 
       - name: Deploy to Hostinger via TUS
         env:
