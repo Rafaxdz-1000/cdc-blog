@@ -1,0 +1,10 @@
+name: test-minimal
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [test-run]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hello
