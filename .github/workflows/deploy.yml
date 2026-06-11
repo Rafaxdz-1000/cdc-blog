@@ -640,6 +640,46 @@ jobs:
                   _art15 += 1
           print('[S15] article SEO patched: %d pages' % _art15)
           changes.append('art-seo:%d' % _art15)
+
+          # ── 16. Header — paridade com o site principal (Carreiras + logo 32px) ──
+          _carrd16 = ('<a data-cdc16="d" href="https://clubedoscisnes.com/carreiras/" '
+                      'class="text-[10px] hover:text-white transition-colors uppercase '
+                      'font-bold text-neutral-400 tracking-[0.2em]">Carreiras</a>')
+          _blogd16 = ('<a href="https://blog.clubedoscisnes.com/" class="text-[10px] '
+                      'text-white uppercase font-bold tracking-[0.2em]" '
+                      'aria-current="page">Blog</a>')
+          _carrm16 = ('<a data-cdc16="m" href="https://clubedoscisnes.com/carreiras/" '
+                      'class="flex items-center h-11 text-sm font-bold uppercase '
+                      'tracking-[0.12em] text-neutral-300 hover:text-white '
+                      'transition-colors font-syne px-1">Carreiras</a>')
+          _contm16 = ('<a href="https://clubedoscisnes.com/contato/" class="flex '
+                      'items-center h-11 text-sm font-bold uppercase tracking-[0.12em] '
+                      'text-neutral-300 hover:text-white transition-colors font-syne '
+                      'px-1">Contato</a>')
+          def _hdr16(_h):
+              _ch = False
+              if 'data-cdc16="d"' not in _h and _blogd16 in _h:
+                  _h = _h.replace(_blogd16, _carrd16 + _blogd16, 1); _ch = True
+              if 'data-cdc16="m"' not in _h and _contm16 in _h:
+                  _h = _h.replace(_contm16, _contm16 + _carrm16, 1); _ch = True
+              if 'height:28px' in _h:
+                  _h = _h.replace('height:28px', 'height:32px'); _ch = True
+              return _h, _ch
+          html, _c16 = _hdr16(html)
+          if _c16: changes.append('hdr16-home')
+          _n16 = 0
+          for _dn16 in sorted(os.listdir('extracted')):
+              _dp16 = os.path.join('extracted', _dn16)
+              if not os.path.isdir(_dp16): continue
+              _ap16 = os.path.join(_dp16, 'index.html')
+              if not os.path.exists(_ap16): continue
+              with open(_ap16, 'r', encoding='utf-8') as _f16: _ah16 = _f16.read()
+              _ah16, _ch16 = _hdr16(_ah16)
+              if _ch16:
+                  with open(_ap16, 'w', encoding='utf-8') as _f16: _f16.write(_ah16)
+                  _n16 += 1
+          print('[S16] header parity: home=%s articles=%d' % (_c16, _n16))
+          changes.append('hdr16-arts:%d' % _n16)
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
@@ -688,6 +728,19 @@ jobs:
             ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
             "cd ${BLOG_ROOT} && mv vps-robots.txt robots.txt && mv vps-sitemap.xml sitemap.xml && echo ok"
           echo "✓ robots.txt + sitemap.xml → VPS:${BLOG_ROOT}/"
+          # Sync patched article HTML to VPS (only */index.html, never deletes)
+          rm -rf art-sync && mkdir -p art-sync
+          unzip -o blog-deploy.zip "*/index.html" -d art-sync > /dev/null 2>&1 || true
+          ART_COUNT=$(find art-sync -name index.html | wc -l)
+          if [ "$ART_COUNT" -gt 0 ]; then
+            tar -czf art-sync.tgz -C art-sync .
+            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+              scp -o StrictHostKeyChecking=no art-sync.tgz "root@69.62.99.164:/tmp/art-sync.tgz"
+            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+              "tar -xzf /tmp/art-sync.tgz -C ${BLOG_ROOT} && rm -f /tmp/art-sync.tgz"
+            echo "✓ ${ART_COUNT} article pages → VPS:${BLOG_ROOT}/"
+          fi
           # Sync patched articles and assets to VPS (without --delete: preserves articles not in current zip)
           sshpass -p "${{ secrets.VPS_PASSWORD }}" \
             rsync -av \
