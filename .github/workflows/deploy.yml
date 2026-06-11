@@ -741,13 +741,6 @@ jobs:
               "tar -xzf /tmp/art-sync.tgz -C ${BLOG_ROOT} && rm -f /tmp/art-sync.tgz"
             echo "✓ ${ART_COUNT} article pages → VPS:${BLOG_ROOT}/"
           fi
-          # Sync patched articles and assets to VPS (without --delete: preserves articles not in current zip)
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            rsync -av \
-            -e "ssh -o StrictHostKeyChecking=no" \
-            extracted/ \
-            "root@69.62.99.164:${BLOG_ROOT}/"
-          echo "✓ Patched articles + assets → VPS:${BLOG_ROOT}/"
 
       - name: Deploy to Hostinger via TUS
         env:
