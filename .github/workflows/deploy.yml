@@ -680,6 +680,54 @@ jobs:
                   _n16 += 1
           print('[S16] header parity: home=%s articles=%d' % (_c16, _n16))
           changes.append('hdr16-arts:%d' % _n16)
+
+          # ── 17. Tema claro/escuro (toggle + persistência) — home + artigos ──
+          def _rdasset(_p):
+              try:
+                  with open(_p, 'r', encoding='utf-8') as _f: return _f.read().strip()
+              except Exception: return ''
+          _th_css = _rdasset('.github/blog-assets/theme.css')
+          _th_head = _rdasset('.github/blog-assets/theme-head.js')
+          _th_tog = _rdasset('.github/blog-assets/toggle.html')
+          _th_js = _rdasset('.github/blog-assets/theme.js')
+          def _apply_theme(_h):
+              _ch = False
+              if '<\\/script>' in _h:
+                  _h = _h.replace('<\\/script>', '</script>'); _ch = True   # repara fechamento LGPD (tag escapada quebrava o parser)
+              if _th_css and 'cdc-theme-css' not in _h:
+                  if '<head>' in _h:
+                      _h = _h.replace('<head>', '<head>\n' + _th_head, 1)
+                  else:
+                      _h = _h.replace('</head>', _th_head + '\n</head>', 1)
+                  _h = _h.replace('</head>', _th_css + '\n</head>', 1)
+                  _ch = True
+              if _th_tog and 'cdc-theme-toggle' not in _h and 'id="mobileMenuBtn"' in _h:
+                  _h = _h.replace('<button id="mobileMenuBtn"', _th_tog + '\n<button id="mobileMenuBtn"', 1); _ch = True
+              if _th_js and 'cdc-theme-js' not in _h:
+                  _h = _h.replace('</body>', _th_js + '\n</body>', 1); _ch = True
+              return _h, _ch
+          html, _cth = _apply_theme(html)
+          if _cth: changes.append('theme-home')
+          _nth = 0
+          for _dn17 in sorted(os.listdir('extracted')):
+              _dp17 = os.path.join('extracted', _dn17)
+              if not os.path.isdir(_dp17): continue
+              _ap17 = os.path.join(_dp17, 'index.html')
+              if not os.path.exists(_ap17): continue
+              with open(_ap17, 'r', encoding='utf-8') as _f17: _ah17 = _f17.read()
+              _ah17, _ch17 = _apply_theme(_ah17)
+              if _ch17:
+                  with open(_ap17, 'w', encoding='utf-8') as _f17: _f17.write(_ah17)
+                  _nth += 1
+          print('[S17] tema: home=%s artigos=%d' % (_cth, _nth))
+          changes.append('theme-arts:%d' % _nth)
+
+          # ── 18. Paginação janelada (mobile) — só home ──
+          _pgjs = _rdasset('.github/blog-assets/pagination.js')
+          if _pgjs and 'cdc-pgwin-js' not in html:
+              html = html.replace('</body>', _pgjs + '\n</body>', 1)
+              changes.append('pgwin-home')
+              print('[S18] paginacao janelada injetada')
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
