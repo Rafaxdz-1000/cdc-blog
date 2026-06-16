@@ -1,0 +1,387 @@
+<style id="cdc-theme-css">
+/* ════════════════════════════════════════════════════════════════════════════
+   CDC BLOG — LIGHT MODE OVERRIDE LAYER  (merged best-of)
+   Scope: html.cdc-light   ·   DARK is default with NO class (never overridden)
+   ───────────────────────────────────────────────────────────────────────────
+   Strategy: the markup is dark-first Tailwind with a HARDCODED palette and no
+   :root vars, so every dark token is remapped 1:1 to a light equivalent.
+   Surfaces become #fff cards lifted by soft shadows; borders carry structure.
+   Brand accents (#2563EB / #1d4ed8 / #60a5fa / #38BDF8 / #25D366) are KEPT
+   identical in both themes — only deepened for FOREGROUND TEXT on white to hit
+   WCAG-AA, never for fills/borders.
+   Contrast trap: text-white is flipped to ink ONLY inside neutral containers
+   (§7), and even there it EXCLUDES colored fills (.bg-[#2563EB]) and photo
+   overlays (.ws-card) via :not() so blue buttons / story titles keep white
+   labels. §8 re-asserts white on colored surfaces as defense-in-depth.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 0 · ROOT + smooth toggle ───────────────────────────────────────────────
+   color-scheme:light fixes native scrollbars/controls. Transition lives ONLY
+   on body to avoid whole-tree repaint jank when toggling. */
+html.cdc-light { color-scheme: light; }
+html.cdc-light body { transition: background-color .25s ease, color .25s ease; }
+
+/* ── 1 · PAGE CANVAS (body #050510 #e2e8f0 -> soft slate, readable ink) ──────*/
+html.cdc-light body {
+  background: #f7f8fb !important;     /* warm soft-slate page */
+  color: #1e293b !important;          /* slate-800 base ink (AA on light) */
+}
+/* Ambient blue glow div: fade so it doesn't muddy the light page */
+html.cdc-light body > div[aria-hidden="true"] > div { opacity: .5 !important; }
+/* Decorative editorial beams: barely-there dark hairlines */
+html.cdc-light .grid-overlay .col-line { background: rgba(15,23,42,.05) !important; }
+
+/* ── 2 · NEUTRAL TEXT RAMP ───────────────────────────────────────────────────
+   On DARK: white=brightest .. 700=faintest/darkest. On LIGHT we INVERT the
+   sense so the "muted on dark" greys (500/600/700) become READABLE mid-greys
+   and the bright end becomes the darkest ink. All AA on #fff / #f1f5f9. */
+html.cdc-light .text-neutral-200 { color: #1e293b !important; } /* was near-white base */
+html.cdc-light .text-neutral-300 { color: #1e293b !important; } /* slate-800 strong copy */
+html.cdc-light .text-neutral-400 { color: #475569 !important; } /* slate-600 body */
+html.cdc-light .text-neutral-500 { color: #52606d !important; } /* readable mid (secondary) */
+html.cdc-light .text-neutral-600 { color: #64748b !important; } /* slate-500 meta */
+html.cdc-light .text-neutral-700 { color: #94a3b8 !important; } /* faint-but-legible meta */
+
+/* ── 3 · SURFACES (opaque dark panels -> lifted white cards) ─────────────────
+   #0d1225 dominant card, #080b18 widgets, #0a0f1e dropdowns, #0a1230 gradient
+   end, bg-neutral-950 / -900, plus inline-styled component cards. Drop the dark
+   border, lift with a soft shadow. */
+html.cdc-light .bg-\[\#0d1225\],
+html.cdc-light .bg-\[\#080b18\],
+html.cdc-light .bg-\[\#0a0f1e\],
+html.cdc-light .bg-\[\#0a1230\],
+html.cdc-light .bg-neutral-950,
+html.cdc-light .bg-neutral-900 {
+  background-color: #ffffff !important;
+}
+/* Component cards (inline CSS, hardcoded #080b18) */
+html.cdc-light .article-card,
+html.cdc-light .featured-hero,
+html.cdc-light .sidebar-widget,
+html.cdc-light .related-card,
+html.cdc-light .vid-card > a > div:first-child {
+  background: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.06) !important;
+}
+html.cdc-light .article-card:hover,
+html.cdc-light .related-card:hover {
+  border-color: rgba(37,99,235,.35) !important;          /* keep blue hover ring */
+  box-shadow: 0 2px 4px rgba(15,23,42,.06), 0 10px 28px rgba(37,99,235,.12) !important;
+}
+/* Dropdown / mobile-menu panels: near-white so blur reads above tinted header */
+html.cdc-light .bg-\[\#0a0f1e\]\/95 {
+  background-color: rgba(255,255,255,.96) !important;
+  box-shadow: 0 12px 40px -12px rgba(15,23,42,.25) !important;
+}
+html.cdc-light #mobileMenu,
+html.cdc-light .bg-\[\#050510\]\/97 { background-color: rgba(247,248,251,.97) !important; }
+/* Subtle alpha surfaces (light-on-dark -> dark-on-light, same elevation feel) */
+html.cdc-light .bg-white\/\[0\.02\] { background-color: rgba(15,23,42,.03) !important; }
+html.cdc-light .bg-white\/5,
+html.cdc-light .hover\:bg-white\/5:hover { background-color: rgba(15,23,42,.05) !important; }
+/* WhatsApp footer pill chip (bg-neutral-900 + text-neutral-300, blue on hover) */
+html.cdc-light .bg-neutral-900 { box-shadow: 0 1px 3px rgba(15,23,42,.08) !important; }
+/* Hero image backing strips that hardcode dark hex inline */
+html.cdc-light [style*="background:#060616"],
+html.cdc-light [style*="background: #060616"] { background: #eef1f7 !important; }
+
+/* ── 4 · BORDERS (border-white/* -> rgba(15,23,42, ~matching α)) ─────────────
+   Same alpha relationships, inverted base, slightly crisper for editorial feel. */
+html.cdc-light .border-white\/10        { border-color: rgba(15,23,42,.12) !important; }
+html.cdc-light .border-white\/\[0\.06\] { border-color: rgba(15,23,42,.09) !important; }
+html.cdc-light .border-white\/\[0\.07\] { border-color: rgba(15,23,42,.10) !important; }
+html.cdc-light .border-white\/\[0\.05\] { border-color: rgba(15,23,42,.08) !important; }
+html.cdc-light .border-white\/\[0\.1\]  { border-color: rgba(15,23,42,.12) !important; }
+html.cdc-light .border-white\/\[0\.12\] { border-color: rgba(15,23,42,.14) !important; }
+html.cdc-light .border-white\/20        { border-color: rgba(15,23,42,.20) !important; }
+html.cdc-light .border-white\/30        { border-color: rgba(15,23,42,.22) !important; }
+/* Non-standard class-named borders present in source markup */
+html.cdc-light .border-white\/06 { border-color: rgba(15,23,42,.09) !important; }
+html.cdc-light .border-white\/08 { border-color: rgba(15,23,42,.11) !important; }
+html.cdc-light .border-white\/05 { border-color: rgba(15,23,42,.08) !important; }
+/* divide / hairline separators */
+html.cdc-light .divide-white\/10 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(15,23,42,.12) !important; }
+html.cdc-light .h-px.bg-white\/\[0\.05\] { background: rgba(15,23,42,.10) !important; }
+
+/* ── 5 · HEADER (ALWAYS-DARK navy bar so the white Logo.png keeps contrast) ──
+   FIX(3): a 96%-white tint had no contrast against the white CDC logo. Keep the
+   header (and the mobile-menu top bar) on the brand navy in BOTH themes and
+   treat it as an always-dark surface — nav text/icons stay light on it. */
+html.cdc-light header[role="banner"] {
+  background: rgba(5,5,16,.85) !important;     /* keep dark navy #050510 */
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  border-bottom-color: rgba(255,255,255,.10) !important;
+  box-shadow: 0 1px 3px rgba(15,23,42,.18) !important;
+}
+/* Header is dark in light mode: keep its text-white labels WHITE (don't let §7
+   flip them) and keep neutral nav links light. */
+html.cdc-light header[role="banner"] .text-white { color: #ffffff !important; }
+html.cdc-light header[role="banner"] .text-neutral-400 { color: #cbd5e1 !important; }
+html.cdc-light header[role="banner"] .text-neutral-300 { color: #e2e8f0 !important; }
+/* Nav hover stays bright on the dark bar */
+html.cdc-light header nav a:hover,
+html.cdc-light header nav span:hover { color: #ffffff !important; }
+/* "Blog" current-page link (text-white) -> stays white on dark header */
+html.cdc-light header nav a[aria-current="page"] { color: #ffffff !important; }
+/* Hamburger icon stays white on the dark bar */
+html.cdc-light #mobileMenuBtn { color: #ffffff !important; }
+/* Theme-toggle on the dark header keeps its dark-mode treatment */
+html.cdc-light header[role="banner"] #cdc-theme-toggle { color: #cbd5e1 !important; border-color: rgba(255,255,255,.12) !important; }
+html.cdc-light header[role="banner"] #cdc-theme-toggle:hover { color: #ffffff !important; }
+/* Mobile-menu top bar is also an always-dark navy bar (white logo lives here) */
+html.cdc-light #mobileMenu .bg-\[\#050510\]\/97,
+html.cdc-light .bg-\[\#050510\]\/97 { background-color: rgba(5,5,16,.97) !important; }
+html.cdc-light #mobileMenu .bg-\[\#050510\]\/97 .text-white { color:#ffffff !important; }
+html.cdc-light #mobileMenu .bg-\[\#050510\]\/97 #mobileMenuBtn,
+html.cdc-light #mobileMenu .bg-\[\#050510\]\/97 [aria-label*="echar"] { color:#ffffff !important; }
+/* Soluções dropdown numbers stay brand blue (.text-blue-500) — untouched */
+
+/* ── 6 · PROSE / ARTICLE BODY (hardcoded hex in <head>) ──────────────────────
+   h2 #fff, h3 #e2e8f0, p/li #94a3b8, strong #e2e8f0, blockquote #cbd5e1. */
+html.cdc-light .prose-article h2 {
+  color: #0f172a !important;
+  border-bottom-color: rgba(15,23,42,.10) !important;
+}
+html.cdc-light .prose-article h3 { color: #1e293b !important; }
+html.cdc-light .prose-article p,
+html.cdc-light .prose-article ul li,
+html.cdc-light .prose-article ol li { color: #475569 !important; } /* AA on #fff */
+html.cdc-light .prose-article strong { color: #0f172a !important; }
+html.cdc-light .prose-article blockquote {
+  color: #334155 !important;
+  background: rgba(37,99,235,.06) !important;     /* keep blue wash */
+  border-left-color: #2563EB !important;          /* accent kept */
+}
+/* list markers stay brand blue (already #2563EB) — re-pin defensively */
+html.cdc-light .prose-article ul li::before,
+html.cdc-light .prose-article ol li::before { color: #2563EB !important; }
+/* TOC links (idle #64748b, hover #38BDF8) + sidebar titles */
+html.cdc-light .toc-list a { color: #475569 !important; }
+html.cdc-light .toc-list a:hover { color: #1d4ed8 !important; }
+html.cdc-light .toc-list li { border-bottom-color: rgba(15,23,42,.07) !important; }
+html.cdc-light .sidebar-title {
+  color: #475569 !important;
+  border-bottom-color: rgba(15,23,42,.10) !important;
+}
+/* Newsletter widget eyebrow uses inline #60a5fa — deepen for AA */
+html.cdc-light .sidebar-title[style*="color:#60a5fa"] { color: #2563EB !important; }
+
+/* ── 7 · text-white REMAP — SCOPED TO NEUTRAL CONTAINERS ─────────────────────
+   The crux of the contrast trap. Flip text-white -> slate-900 ONLY where it
+   sits on a light/neutral surface — and EXCLUDE colored fills + photo overlays.
+   FIX(1): `:not(.bg-[#2563EB])` so an element carrying BOTH bg-[#2563EB] and
+   text-white (blue buttons, rank/CDC badges) is never darkened.
+   FIX(2): `:not(.ws-card *)` so webstory titles over the dark photo gradient
+   stay white. The header is handled in §5 (always-dark) and is left alone. */
+html.cdc-light main .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light article .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light section .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light .article-card .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light .featured-hero .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light .sidebar-widget .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light .related-card .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light footer .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light #mobileMenu .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *),
+html.cdc-light h1.text-white,
+html.cdc-light .card-title,
+html.cdc-light .hover\:text-white:hover {
+  color: #0f172a !important;        /* slate-900 ink */
+}
+/* Card-title hover stays brand blue (group-hover:text-blue-300/400) — kept §8f */
+
+/* ════════════════════════════════════════════════════════════════════════════
+   8 · CONTRAST GUARDS — keep WHITE (or intended dark) on COLORED surfaces.
+   Higher specificity than §2/§7 so a flip can never darken a colored label.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* 8a · Solid blue buttons (bg-[#2563EB]) — labels + child SVG stay white.
+   FIX(1): pin both the element itself (.bg-[#2563EB].text-white) and any
+   descendant .text-white, plus element-qualified a./button. forms, so this
+   wins over §7 regardless of cascade. §7 now also excludes .bg-[#2563EB], so
+   this is belt-and-suspenders. */
+html.cdc-light .bg-\[\#2563EB\],
+html.cdc-light .bg-\[\#2563EB\] * ,
+html.cdc-light .bg-\[\#2563EB\].text-white,
+html.cdc-light .bg-\[\#2563EB\] .text-white,
+html.cdc-light a.bg-\[\#2563EB\],
+html.cdc-light button.bg-\[\#2563EB\],
+html.cdc-light .hover\:bg-blue-500:hover {
+  color: #ffffff !important;
+}
+html.cdc-light .bg-\[\#2563EB\] { background-color: #2563EB !important; } /* re-pin: not a surface */
+html.cdc-light .bg-\[\#2563EB\]:hover,
+html.cdc-light .hover\:bg-blue-500:hover { background-color: #1d4ed8 !important; }
+
+/* 8a-ws · WEBSTORY card titles (FIX 2): white text over the inline dark photo
+   gradient overlay must STAY white — never flipped by §7. */
+html.cdc-light .ws-card .text-white,
+html.cdc-light .ws-card p,
+html.cdc-light .ws-card .card-title { color: #ffffff !important; }
+
+/* 8b · WHITE CTA "Iniciar Projeto" (bg-white.text-black) — on a light page a
+   white button is invisible, so INVERT to a slate-ink pill with white text.
+   Covers desktop header + mobile bottom-sheet variant. */
+html.cdc-light header a.bg-white,
+html.cdc-light #mobileMenu a.bg-white,
+html.cdc-light a.bg-white.text-black {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+html.cdc-light header a.bg-white:hover,
+html.cdc-light #mobileMenu a.bg-white:hover,
+html.cdc-light a.bg-white.hover\:bg-neutral-200:hover { background-color: #e2e8f0 !important; }
+
+/* 8c · "Ja sou cliente" cyan ghost button — accent kept, deepened for AA text */
+html.cdc-light a.text-\[\#38BDF8\],
+html.cdc-light .text-\[\#38BDF8\] { color: #0284c7 !important; }  /* cyan-700, AA on white */
+html.cdc-light .border-\[\#38BDF8\]\/30 { border-color: rgba(2,132,199,.4) !important; }
+
+/* 8d · WhatsApp green chips/icons — kept (deepened for AA on white) */
+html.cdc-light .text-\[\#25D366\] { color: #128C7E !important; }
+html.cdc-light .border-\[\#25D366\]\/30,
+html.cdc-light .border-\[\#25D366\]\/40 { border-color: rgba(18,140,126,.4) !important; }
+html.cdc-light .bg-\[\#25D366\]\/10 { background-color: rgba(18,140,126,.08) !important; }
+
+/* 8e · Diagnóstico ghost button (text-[#2563EB] + blue border + blue/10 hover) */
+html.cdc-light button.text-\[\#2563EB\],
+html.cdc-light .text-\[\#2563EB\] { color: #1d4ed8 !important; }
+html.cdc-light .border-\[\#2563EB\]\/40 { border-color: rgba(37,99,235,.5) !important; }
+html.cdc-light .hover\:bg-\[\#2563EB\]\/10:hover { background-color: rgba(37,99,235,.10) !important; }
+
+/* 8f · Author/avatar chips (bg-[#2563EB]/15) + blue text utilities — keep blue */
+html.cdc-light .bg-\[\#2563EB\]\/15 { background-color: rgba(37,99,235,.12) !important; }
+html.cdc-light .bg-\[\#2563EB\]\/05,
+html.cdc-light .bg-\[\#2563EB\]\/06 { background-color: rgba(37,99,235,.05) !important; }
+html.cdc-light .border-blue-500\/20 { border-color: rgba(37,99,235,.25) !important; }
+html.cdc-light .text-blue-400 { color: #1d4ed8 !important; }
+html.cdc-light .text-blue-300 { color: #2563eb !important; }
+html.cdc-light .text-blue-500 { color: #2563EB !important; }
+html.cdc-light .group:hover .group-hover\:text-blue-300,
+html.cdc-light .group:hover .group-hover\:text-blue-400 { color: #1d4ed8 !important; }
+
+/* 8g · BADGES — colored category chips keep their hue (alpha tints read on
+   white); text deepened to clear AA. Lock text so §7 can't darken it. */
+html.cdc-light .badge-ia         { color:#1d4ed8 !important; background:rgba(37,99,235,.12)  !important; border-color:rgba(37,99,235,.30)  !important; }
+html.cdc-light .badge-marketing  { color:#15803d !important; background:rgba(22,163,74,.12)  !important; border-color:rgba(22,163,74,.30)  !important; }
+html.cdc-light .badge-automacao  { color:#7e22ce !important; background:rgba(147,51,234,.12) !important; border-color:rgba(147,51,234,.30) !important; }
+html.cdc-light .badge-cases      { color:#c2410c !important; background:rgba(234,88,12,.12)  !important; border-color:rgba(234,88,12,.30)  !important; }
+html.cdc-light .badge-growth     { color:#0f766e !important; background:rgba(20,184,166,.12) !important; border-color:rgba(20,184,166,.30) !important; }
+html.cdc-light .badge-vendas     { color:#a16207 !important; background:rgba(234,179,8,.16)  !important; border-color:rgba(234,179,8,.35)  !important; }
+html.cdc-light .badge-tecnologia { color:#0284c7 !important; background:rgba(56,189,248,.14) !important; border-color:rgba(56,189,248,.35) !important; }
+/* Tag pills (bg-white/05 + text-neutral-500) -> light grey pill */
+html.cdc-light .bg-white\/05 { background-color: rgba(15,23,42,.05) !important; }
+
+/* 8h · Accent re-pins kept identical in both themes */
+html.cdc-light .accent-line     { background: #2563EB !important; }
+html.cdc-light .section-eyebrow  { color: #2563EB !important; }
+
+/* ── 9 · CATEGORY TABS / FILTER (.cat-tab) ───────────────────────────────────*/
+html.cdc-light .cat-tab        { color:#475569 !important; border-color:rgba(15,23,42,.12) !important; }
+html.cdc-light .cat-tab:hover  { color:#0f172a !important; border-color:rgba(37,99,235,.4) !important; }
+html.cdc-light .cat-tab.active { background:rgba(37,99,235,.12) !important; border-color:rgba(37,99,235,.5) !important; color:#1d4ed8 !important; }
+
+/* ── 10 · FORM CONTROLS (search, newsletter inputs, #catSelect) ──────────────
+   Inputs hardcode bg-[#050510] / bg-[#0a0f1e] / #080b18 + dark placeholder. */
+html.cdc-light input[type="email"],
+html.cdc-light input[type="search"],
+html.cdc-light #searchInput,
+html.cdc-light #cdc-search,
+html.cdc-light .bg-\[\#050510\].border-white\/10,
+html.cdc-light input.bg-\[\#0a0f1e\],
+html.cdc-light #catSelect {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border-color: rgba(15,23,42,.16) !important;
+}
+html.cdc-light input::placeholder,
+html.cdc-light .placeholder\:text-neutral-700::placeholder,
+html.cdc-light .placeholder\:text-neutral-600::placeholder { color: #94a3b8 !important; }
+html.cdc-light input:focus,
+html.cdc-light #catSelect:focus { border-color: rgba(37,99,235,.5) !important; }
+/* Footer transparent newsletter input (border-b only, text-white) */
+html.cdc-light footer input.bg-transparent {
+  background: transparent !important;
+  color: #1e293b !important;
+  border-bottom-color: rgba(15,23,42,.20) !important;
+}
+/* #catSelect was color-scheme:dark with dark options -> light native dropdown */
+html.cdc-light #catSelect { color-scheme: light !important; }
+html.cdc-light #catSelect option { background:#ffffff !important; color:#1e293b !important; }
+html.cdc-light #catSelect:focus { box-shadow: 0 0 0 1px rgba(37,99,235,.3) !important; }
+
+/* ── 11 · SEARCH HIGHLIGHT (mark.search-hl was #fff on blue) ─────────────────*/
+html.cdc-light mark.search-hl { background: rgba(37,99,235,.18) !important; color:#1d4ed8 !important; }
+
+/* ── 12 · GRADIENT PANELS (newsletter widget / CTA cards) ────────────────────
+   Inline-style gradients can't be hit by class selectors -> retint by attr.
+   #080b18->#0a1230 (sidebar NL) and #0a1030->#080d1b (CTA blocks). */
+html.cdc-light [style*="#080b18"][style*="#0a1230"],
+html.cdc-light [style*="#0a1030"][style*="#080d1b"] {
+  background: linear-gradient(135deg,#eef4ff,#ffffff) !important;
+  border-color: rgba(37,99,235,.22) !important;
+}
+
+/* ── 13 · PAGINATION (homepage) — colors only; windowing is JS, see note ─────
+   Active button (border-[#2563EB] bg-[#2563EB] text-white) kept blue+white by
+   §8a; re-assert here. Inactive numbers + prev/next + disabled remap to light.
+   Base @media(max-width:479px) rules (font-size:10px, hidden prev/next labels)
+   still apply and are fine on light. */
+html.cdc-light #pagination .pagination-btn { color:#475569 !important; }
+html.cdc-light #pagination .border-white\/\[0\.1\]  { border-color:rgba(15,23,42,.12) !important; color:#52606d !important; } /* inactive number */
+html.cdc-light #pagination .border-white\/\[0\.12\] { border-color:rgba(15,23,42,.14) !important; color:#334155 !important; } /* prev/next active */
+html.cdc-light #pagination .border-white\/\[0\.06\] { border-color:rgba(15,23,42,.08) !important; color:#cbd5e1 !important; } /* prev/next disabled */
+html.cdc-light #pagination .pagination-btn:hover { border-color:rgba(37,99,235,.5) !important; color:#0f172a !important; }
+html.cdc-light #pagination .pagination-btn[disabled]:hover { border-color:rgba(15,23,42,.08) !important; color:#cbd5e1 !important; }
+/* Active page button: bg-[#2563EB] text-white — kept by §8a, re-assert solid */
+html.cdc-light #pagination .bg-\[\#2563EB\],
+html.cdc-light #pagination .pagination-btn[aria-current="page"] {
+  background:#2563EB !important; color:#fff !important; border-color:#2563EB !important;
+}
+@media (max-width: 479px) {
+  html.cdc-light #pagination { gap: 4px !important; }
+  html.cdc-light #pagination .pagination-btn:not(.prev-btn):not(.next-btn) {
+    width: 32px !important; height: 32px !important; font-size: 10px !important;
+  }
+}
+
+/* ── 14 · LGPD COOKIE BAR (#cdc-cb dark glass) -> light glass ─────────────────*/
+html.cdc-light #cdc-cb { background: rgba(247,248,251,.97) !important; border-top-color: rgba(37,99,235,.2) !important; }
+html.cdc-light #cdc-cb p { color:#475569 !important; }
+html.cdc-light #cdc-cb a { color:#1d4ed8 !important; }
+html.cdc-light .cdc-cbn { color:#475569 !important; border-color: rgba(15,23,42,.15) !important; }
+/* .cdc-cba blue button gets its fill from #cdc-lgpd-css .cdc-cba (class rule),
+   not the bg-[#2563EB] utility; its color:#fff is never flipped by §7 because
+   the bar is a body-level fixed element outside main/article/section/footer. */
+
+/* ── 15 · MID-ARTICLE CTA (JS-injected, inline gradient + #fff title) ────────
+   Title color:#fff sits on a light-in-both-themes blue tint -> force dark. */
+html.cdc-light .mid-article-cta {
+  background: linear-gradient(135deg,rgba(37,99,235,.08),rgba(37,99,235,.03)) !important;
+  border-color: rgba(37,99,235,.2) !important;
+}
+html.cdc-light .mid-article-cta p[style*="#fff"] { color:#0f172a !important; }
+html.cdc-light .mid-article-cta button { background:#2563EB !important; color:#fff !important; }
+
+/* ── 16 · IMAGE LEGIBILITY ───────────────────────────────────────────────────
+   Hero/card imgs had opacity:.85 to blend on dark; on white they look washed —
+   restore full opacity. Lighten the img-placeholder gradient for the light page. */
+html.cdc-light main img[style*="opacity:0.85"],
+html.cdc-light main img[style*="opacity: 0.85"] { opacity: 1 !important; }
+html.cdc-light .img-placeholder { background: linear-gradient(135deg,#dbe4f5 0%,#bcd0f2 50%,#e7eefb 100%) !important; }
+html.cdc-light .ad-label,
+html.cdc-light .ad-slot p[style*="color:#555"] { color:#94a3b8 !important; }
+
+/* ── 17 · FOOTER (hardcodes bg-[#050510]; anchor page end with faint slate) ──*/
+html.cdc-light footer[role="contentinfo"] { background:#f1f3f8 !important; border-top-color: rgba(15,23,42,.10) !important; }
+html.cdc-light footer .text-white:not(.bg-\[\#2563EB\]):not(.ws-card *) { color:#0f172a !important; }
+html.cdc-light footer .text-neutral-400 { color:#475569 !important; }
+html.cdc-light footer .text-neutral-500 { color:#52606d !important; }
+html.cdc-light footer .text-neutral-600 { color:#64748b !important; }
+
+/* ── toggle icon swap (moved out of <button> for valid HTML) ── */
+#cdc-theme-toggle .icon-moon{display:none}
+    #cdc-theme-toggle .icon-sun{display:block}
+    html.cdc-light #cdc-theme-toggle .icon-sun{display:none}
+    html.cdc-light #cdc-theme-toggle .icon-moon{display:block}
+</style>
