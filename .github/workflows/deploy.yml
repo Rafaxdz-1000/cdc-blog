@@ -701,7 +701,7 @@ jobs:
                       _h = _h.replace('</head>', _th_head + '\n</head>', 1)
                   _h = _h.replace('</head>', _th_css + '\n</head>', 1)
                   _ch = True
-              if _th_tog and 'cdc-theme-toggle' not in _h and 'id="mobileMenuBtn"' in _h:
+              if _th_tog and '<button id="cdc-theme-toggle"' not in _h and 'id="mobileMenuBtn"' in _h:
                   _h = _h.replace('<button id="mobileMenuBtn"', _th_tog + '\n<button id="mobileMenuBtn"', 1); _ch = True
               if _th_js and 'cdc-theme-js' not in _h:
                   _h = _h.replace('</body>', _th_js + '\n</body>', 1); _ch = True
