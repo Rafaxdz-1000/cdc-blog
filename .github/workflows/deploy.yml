@@ -806,18 +806,21 @@ jobs:
             ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
             "cd ${BLOG_ROOT} && mv vps-robots.txt robots.txt && mv vps-sitemap.xml sitemap.xml && echo ok"
           echo "✓ robots.txt + sitemap.xml → VPS:${BLOG_ROOT}/"
-          # Sync patched article HTML to VPS (only */index.html, never deletes)
+          # Sync patched article HTML to VPS (only */index.html, never deletes) — resiliente
           rm -rf art-sync && mkdir -p art-sync
           unzip -o blog-deploy.zip "*/index.html" -d art-sync > /dev/null 2>&1 || true
           ART_COUNT=$(find art-sync -name index.html | wc -l)
           if [ "$ART_COUNT" -gt 0 ]; then
             tar -czf art-sync.tgz -C art-sync .
-            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-              scp -o StrictHostKeyChecking=no art-sync.tgz "root@69.62.99.164:/tmp/art-sync.tgz"
-            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-              ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
-              "tar -xzf /tmp/art-sync.tgz -C ${BLOG_ROOT} && rm -f /tmp/art-sync.tgz"
-            echo "✓ ${ART_COUNT} article pages → VPS:${BLOG_ROOT}/"
+            SYNC_OK=0
+            for i in 1 2 3; do
+              if sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no -o ConnectTimeout=40 art-sync.tgz "root@69.62.99.164:/tmp/art-sync.tgz" && \
+                 sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=40 root@69.62.99.164 "test -s /tmp/art-sync.tgz && tar -xzf /tmp/art-sync.tgz -C ${BLOG_ROOT} && rm -f /tmp/art-sync.tgz"; then
+                SYNC_OK=1; break
+              fi
+              echo "art-sync tentativa $i falhou; aguardando..."; sleep 8
+            done
+            if [ "$SYNC_OK" = "1" ]; then echo "✓ ${ART_COUNT} article pages → VPS:${BLOG_ROOT}/"; else echo "⚠ art-sync falhou apos 3 tentativas — homepage ja publicada; artigos no proximo deploy"; fi
           fi
 
       - name: Deploy to Hostinger via TUS
