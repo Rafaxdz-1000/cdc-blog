@@ -693,17 +693,21 @@ jobs:
           def _apply_theme(_h):
               _ch = False
               if '<\\/script>' in _h:
-                  _h = _h.replace('<\\/script>', '</script>'); _ch = True   # repara fechamento LGPD (tag escapada quebrava o parser)
-              if _th_css and 'cdc-theme-css' not in _h:
+                  _h = _h.replace('<\\/script>', '</script>'); _ch = True   # repara fechamento LGPD
+              # strip blocos de tema anteriores (atualizacao idempotente) + re-injeta os assets atuais
+              for _pat in [r'<style id="cdc-theme-css">[\s\S]*?</style>\s*', r'<script id="cdc-theme-head">[\s\S]*?</script>\s*', r'<script id="cdc-theme-js">[\s\S]*?</script>\s*', r'<button id="cdc-theme-toggle"[\s\S]*?</button>\s*']:
+                  _h2 = re.sub(_pat, '', _h)
+                  if _h2 != _h: _h = _h2; _ch = True
+              if _th_css:
                   if '<head>' in _h:
                       _h = _h.replace('<head>', '<head>\n' + _th_head, 1)
                   else:
                       _h = _h.replace('</head>', _th_head + '\n</head>', 1)
                   _h = _h.replace('</head>', _th_css + '\n</head>', 1)
                   _ch = True
-              if _th_tog and '<button id="cdc-theme-toggle"' not in _h and 'id="mobileMenuBtn"' in _h:
+              if _th_tog and 'id="mobileMenuBtn"' in _h:
                   _h = _h.replace('<button id="mobileMenuBtn"', _th_tog + '\n<button id="mobileMenuBtn"', 1); _ch = True
-              if _th_js and 'cdc-theme-js' not in _h:
+              if _th_js:
                   _h = _h.replace('</body>', _th_js + '\n</body>', 1); _ch = True
               return _h, _ch
           html, _cth = _apply_theme(html)
