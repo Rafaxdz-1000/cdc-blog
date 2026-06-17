@@ -732,6 +732,32 @@ jobs:
               html = html.replace('</body>', _pgjs + '\n</body>', 1)
               changes.append('pgwin-home')
               print('[S18] paginacao janelada injetada')
+
+          # ── 19. Logo aponta para o proprio blog (nao o site principal) — home + artigos ──
+          def _logo_home(_h):
+              _c = False
+              _a1 = '<a href="https://clubedoscisnes.com/" class="flex items-center gap-3 group shrink-0"'
+              _b1 = '<a href="https://blog.clubedoscisnes.com/" class="flex items-center gap-3 group shrink-0"'
+              if _a1 in _h: _h = _h.replace(_a1, _b1); _c = True
+              _a2 = '<a href="https://clubedoscisnes.com/" aria-label="Inicio"'
+              _b2 = '<a href="https://blog.clubedoscisnes.com/" aria-label="Inicio"'
+              if _a2 in _h: _h = _h.replace(_a2, _b2); _c = True
+              return _h, _c
+          html, _clg = _logo_home(html)
+          if _clg: changes.append('logo-home')
+          _nlg = 0
+          for _dn19 in sorted(os.listdir('extracted')):
+              _dp19 = os.path.join('extracted', _dn19)
+              if not os.path.isdir(_dp19): continue
+              _ap19 = os.path.join(_dp19, 'index.html')
+              if not os.path.exists(_ap19): continue
+              with open(_ap19, 'r', encoding='utf-8') as _f19: _ah19 = _f19.read()
+              _ah19, _ch19 = _logo_home(_ah19)
+              if _ch19:
+                  with open(_ap19, 'w', encoding='utf-8') as _f19: _f19.write(_ah19)
+                  _nlg += 1
+          print('[S19] logo->blog: home=%s artigos=%d' % (_clg, _nlg))
+          changes.append('logo-home-arts:%d' % _nlg)
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
