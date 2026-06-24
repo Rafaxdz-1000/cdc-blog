@@ -827,6 +827,30 @@ jobs:
                       _ndom += 1
           print('[S20] dominio migrado: home + %d arquivos (html/xml/json/txt)' % _ndom)
           changes.append('domain-files:%d' % _ndom)
+
+          # ── 21. Política de Privacidade própria do blog + repontar link (boa prática AdSense) ──
+          _priv21 = _rdasset('.github/blog-assets/privacidade.html')
+          if _priv21:
+              os.makedirs('extracted/privacidade', exist_ok=True)
+              with open('extracted/privacidade/index.html', 'w', encoding='utf-8') as _fp21: _fp21.write(_priv21)
+              changes.append('privacy-page')
+          _PRIVOLD = 'https://clubedoscisnes.com/privacidade'
+          _PRIVNEW = 'https://blogclubedoscisnes.com/privacidade'
+          if _PRIVOLD in html:
+              html = html.replace(_PRIVOLD, _PRIVNEW)
+          _np21 = 0
+          for _dn21 in sorted(os.listdir('extracted')):
+              _dp21 = os.path.join('extracted', _dn21)
+              if not os.path.isdir(_dp21): continue
+              if _dn21 == 'privacidade': continue
+              _ap21 = os.path.join(_dp21, 'index.html')
+              if not os.path.exists(_ap21): continue
+              with open(_ap21, 'r', encoding='utf-8') as _f21: _a21 = _f21.read()
+              if _PRIVOLD in _a21:
+                  with open(_ap21, 'w', encoding='utf-8') as _f21: _f21.write(_a21.replace(_PRIVOLD, _PRIVNEW))
+                  _np21 += 1
+          print('[S21] privacy page criada + link repontado em home + %d artigos' % _np21)
+          changes.append('privacy-link:%d' % _np21)
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
