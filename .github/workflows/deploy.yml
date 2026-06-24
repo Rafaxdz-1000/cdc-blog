@@ -315,7 +315,7 @@ jobs:
           print('Dynamic rebuild: {} articles found'.format(len(_art_metas)))
 
           # ── 11b. feed.json (JSON Feed 1.1) — consumido pela newsletter / integrações ──
-          _BLOGURL = 'https://blog.clubedoscisnes.com'
+          _BLOGURL = 'https://blogclubedoscisnes.com'
           _feed_items = []
           for _fa in _art_metas:
               _fslug = _fa.get('slug', '')
@@ -620,18 +620,18 @@ jobs:
 
           # ── 14. robots.txt + sitemap.xml ───────────────────────────────────────────────────────────────────
           import datetime as _dt14
-          _robots14 = 'User-agent: *\nAllow: /\nSitemap: https://blog.clubedoscisnes.com/sitemap.xml\n'
+          _robots14 = 'User-agent: *\nAllow: /\nSitemap: https://blogclubedoscisnes.com/sitemap.xml\n'
           with open('extracted/robots.txt', 'w') as _fr14: _fr14.write(_robots14)
           _today14 = _dt14.date.today().isoformat()
-          _surls14 = ['https://blog.clubedoscisnes.com/']
+          _surls14 = ['https://blogclubedoscisnes.com/']
           for _dn14 in sorted(os.listdir('extracted')):
               if os.path.isdir(os.path.join('extracted', _dn14)) and \
                  os.path.exists(os.path.join('extracted', _dn14, 'index.html')):
-                  _surls14.append('https://blog.clubedoscisnes.com/%s/' % _dn14)
+                  _surls14.append('https://blogclubedoscisnes.com/%s/' % _dn14)
           _sm14 = ['<?xml version="1.0" encoding="UTF-8"?>',
                    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
           for _u14 in _surls14:
-              _pri14 = '1.0' if _u14 == 'https://blog.clubedoscisnes.com/' else '0.8'
+              _pri14 = '1.0' if _u14 == 'https://blogclubedoscisnes.com/' else '0.8'
               _sm14.append('  <url><loc>%s</loc><lastmod>%s</lastmod><changefreq>daily</changefreq><priority>%s</priority></url>'
                            % (_u14, _today14, _pri14))
           _sm14.append('</urlset>')
@@ -656,7 +656,7 @@ jobs:
               if 'adsbygoogle.js' not in _ah15:
                   _ah15 = _ah15.replace('</head>', _ads_tag15 + '\n</head>', 1); _ch15 = True
               if '<link rel="canonical"' not in _ah15:
-                  _cano15 = '<link rel="canonical" href="https://blog.clubedoscisnes.com/%s/">' % _dn15
+                  _cano15 = '<link rel="canonical" href="https://blogclubedoscisnes.com/%s/">' % _dn15
                   _ah15 = _ah15.replace('</head>', _cano15 + '\n</head>', 1); _ch15 = True
               if '<meta name="description"' not in _ah15:
                   _dm15 = re.search(r'"description"\s*:\s*"([^"]{20,})"', _ah15)
@@ -677,7 +677,7 @@ jobs:
           _carrd16 = ('<a data-cdc16="d" href="https://clubedoscisnes.com/carreiras/" '
                       'class="text-[10px] hover:text-white transition-colors uppercase '
                       'font-bold text-neutral-400 tracking-[0.2em]">Carreiras</a>')
-          _blogd16 = ('<a href="https://blog.clubedoscisnes.com/" class="text-[10px] '
+          _blogd16 = ('<a href="https://blogclubedoscisnes.com/" class="text-[10px] '
                       'text-white uppercase font-bold tracking-[0.2em]" '
                       'aria-current="page">Blog</a>')
           _carrm16 = ('<a data-cdc16="m" href="https://clubedoscisnes.com/carreiras/" '
@@ -769,10 +769,10 @@ jobs:
           def _logo_home(_h):
               _c = False
               _a1 = '<a href="https://clubedoscisnes.com/" class="flex items-center gap-3 group shrink-0"'
-              _b1 = '<a href="https://blog.clubedoscisnes.com/" class="flex items-center gap-3 group shrink-0"'
+              _b1 = '<a href="https://blogclubedoscisnes.com/" class="flex items-center gap-3 group shrink-0"'
               if _a1 in _h: _h = _h.replace(_a1, _b1); _c = True
               _a2 = '<a href="https://clubedoscisnes.com/" aria-label="Inicio"'
-              _b2 = '<a href="https://blog.clubedoscisnes.com/" aria-label="Inicio"'
+              _b2 = '<a href="https://blogclubedoscisnes.com/" aria-label="Inicio"'
               if _a2 in _h: _h = _h.replace(_a2, _b2); _c = True
               return _h, _c
           html, _clg = _logo_home(html)
@@ -801,6 +801,32 @@ jobs:
               html = html.replace('</body>', _NLSIGNUP + '\n</body>', 1)
               changes.append('nl-signup')
 
+
+          # ── 20. Migração de domínio (catch-all): blog.clubedoscisnes.com → blogclubedoscisnes.com ──
+          # Normaliza refs vindas do render service (og:url, og:image, JSON-LD, nav, rodapé, menu mobile),
+          # além de robots.txt/sitemap.xml. Idempotente (após o replace o domínio antigo some).
+          _OLDDOM = 'blog.' + 'clubedoscisnes.com'
+          _NEWDOM = 'blogclubedoscisnes.com'
+          if _OLDDOM in html:
+              html = html.replace(_OLDDOM, _NEWDOM)
+              changes.append('domain-home')
+          for _ff20 in ['extracted/robots.txt', 'extracted/sitemap.xml']:
+              if os.path.exists(_ff20):
+                  with open(_ff20, 'r', encoding='utf-8') as _f20: _cc20 = _f20.read()
+                  if _OLDDOM in _cc20:
+                      with open(_ff20, 'w', encoding='utf-8') as _f20: _f20.write(_cc20.replace(_OLDDOM, _NEWDOM))
+          _ndom = 0
+          for _dn20 in sorted(os.listdir('extracted')):
+              _dp20 = os.path.join('extracted', _dn20)
+              if not os.path.isdir(_dp20): continue
+              _ap20 = os.path.join(_dp20, 'index.html')
+              if not os.path.exists(_ap20): continue
+              with open(_ap20, 'r', encoding='utf-8') as _f20a: _ah20 = _f20a.read()
+              if _OLDDOM in _ah20:
+                  with open(_ap20, 'w', encoding='utf-8') as _f20a: _f20a.write(_ah20.replace(_OLDDOM, _NEWDOM))
+                  _ndom += 1
+          print('[S20] dominio migrado: home + robots/sitemap + artigos=%d' % _ndom)
+          changes.append('domain-arts:%d' % _ndom)
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
@@ -822,7 +848,7 @@ jobs:
           unzip -p blog-deploy.zip index.html > patched-index.html
           echo "Patched HTML size: $(wc -c < patched-index.html) bytes"
 
-          # Detect nginx docroot for blog.clubedoscisnes.com dynamically
+          # Detect nginx docroot for blogclubedoscisnes.com dynamically
           BLOG_ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
             ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
             "nginx -T 2>/dev/null | awk 'BEGIN{f=0} /blog\\.clubedoscisnes\\.com/{f=1} f && /[[:space:]]root /{gsub(/;/,\"\",\$2); print \$2; exit}'" 2>/dev/null || echo "")
@@ -882,7 +908,7 @@ jobs:
 
           tok = os.environ["HOSTINGER_TOKEN"]
           zip_path = "blog-deploy.zip"
-          domain   = "blog.clubedoscisnes.com"
+          domain   = "blogclubedoscisnes.com"
           username = "u759662497"
           base_url = "https://developers.hostinger.com"
           hdrs_auth = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
