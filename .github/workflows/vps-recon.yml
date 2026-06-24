@@ -1,0 +1,27 @@
+name: VPS Recon (read-only)
+on:
+  repository_dispatch:
+    types: [vps-recon]
+  workflow_dispatch:
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Install sshpass
+        run: sudo apt-get install -y sshpass
+      - name: Dump nginx + certbot state (read-only)
+        run: |
+          sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=40 root@69.62.99.164 '
+            echo "### nginx version ###"; nginx -v 2>&1;
+            echo "### which certbot ###"; which certbot 2>/dev/null || echo "NO-CERTBOT";
+            echo "### certbot certificates ###"; certbot certificates 2>/dev/null || echo "(certbot certificates falhou)";
+            echo "### arquivos nginx que citam blog.clubedoscisnes.com ###";
+            grep -rl "blog.clubedoscisnes.com" /etc/nginx/ 2>/dev/null || echo "(nenhum)";
+            echo "### conteudo de cada server block do blog ###";
+            for f in $(grep -rl "blog.clubedoscisnes.com" /etc/nginx/sites-enabled/ /etc/nginx/sites-available/ /etc/nginx/conf.d/ 2>/dev/null | sort -u); do
+              echo "===== FILE: $f =====";
+              cat "$f";
+            done;
+            echo "### sites-enabled ###"; ls -la /etc/nginx/sites-enabled/ 2>/dev/null;
+          '
