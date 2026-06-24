@@ -897,6 +897,7 @@ jobs:
           fi
 
       - name: Deploy to Hostinger via TUS
+        continue-on-error: true   # mirror Hostinger morto (404); VPS é o servidor real
         env:
           HOSTINGER_TOKEN: ${{ secrets.HOSTINGER_TOKEN }}
         run: |
