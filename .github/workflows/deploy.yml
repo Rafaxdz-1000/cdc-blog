@@ -803,30 +803,27 @@ jobs:
 
 
           # ── 20. Migração de domínio (catch-all): blog.clubedoscisnes.com → blogclubedoscisnes.com ──
-          # Normaliza refs vindas do render service (og:url, og:image, JSON-LD, nav, rodapé, menu mobile),
-          # além de robots.txt/sitemap.xml. Idempotente (após o replace o domínio antigo some).
+          # Normaliza TODA referência ao domínio antigo em qualquer arquivo de texto gerado
+          # (home, artigos, robots.txt, sitemap.xml, feed.json, etc.). Idempotente.
           _OLDDOM = 'blog.' + 'clubedoscisnes.com'
           _NEWDOM = 'blogclubedoscisnes.com'
           if _OLDDOM in html:
               html = html.replace(_OLDDOM, _NEWDOM)
               changes.append('domain-home')
-          for _ff20 in ['extracted/robots.txt', 'extracted/sitemap.xml']:
-              if os.path.exists(_ff20):
-                  with open(_ff20, 'r', encoding='utf-8') as _f20: _cc20 = _f20.read()
-                  if _OLDDOM in _cc20:
-                      with open(_ff20, 'w', encoding='utf-8') as _f20: _f20.write(_cc20.replace(_OLDDOM, _NEWDOM))
+          _domexts = ('.html', '.htm', '.xml', '.json', '.txt')
           _ndom = 0
-          for _dn20 in sorted(os.listdir('extracted')):
-              _dp20 = os.path.join('extracted', _dn20)
-              if not os.path.isdir(_dp20): continue
-              _ap20 = os.path.join(_dp20, 'index.html')
-              if not os.path.exists(_ap20): continue
-              with open(_ap20, 'r', encoding='utf-8') as _f20a: _ah20 = _f20a.read()
-              if _OLDDOM in _ah20:
-                  with open(_ap20, 'w', encoding='utf-8') as _f20a: _f20a.write(_ah20.replace(_OLDDOM, _NEWDOM))
-                  _ndom += 1
-          print('[S20] dominio migrado: home + robots/sitemap + artigos=%d' % _ndom)
-          changes.append('domain-arts:%d' % _ndom)
+          for _root20, _dirs20, _files20 in os.walk('extracted'):
+              for _fn20 in _files20:
+                  if not _fn20.lower().endswith(_domexts): continue
+                  _fp20 = os.path.join(_root20, _fn20)
+                  try:
+                      with open(_fp20, 'r', encoding='utf-8') as _f20: _c20 = _f20.read()
+                  except Exception: continue
+                  if _OLDDOM in _c20:
+                      with open(_fp20, 'w', encoding='utf-8') as _f20: _f20.write(_c20.replace(_OLDDOM, _NEWDOM))
+                      _ndom += 1
+          print('[S20] dominio migrado: home + %d arquivos (html/xml/json/txt)' % _ndom)
+          changes.append('domain-files:%d' % _ndom)
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
