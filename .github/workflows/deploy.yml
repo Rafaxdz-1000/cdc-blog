@@ -19,10 +19,13 @@ jobs:
 
       - name: Download blog-deploy.zip from VPS
         run: |
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            scp -o StrictHostKeyChecking=no \
-            root@69.62.99.164:/opt/blog/blog-deploy.zip \
-            ./blog-deploy.zip
+          for i in 1 2 3 4 5; do
+            if sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no -o ConnectTimeout=40 root@69.62.99.164:/opt/blog/blog-deploy.zip ./blog-deploy.zip; then
+              echo "download OK (tentativa $i)"; break
+            fi
+            echo "download tentativa $i falhou; aguardando..."; sleep 10
+            if [ "$i" = "5" ]; then echo "download falhou apos 5 tentativas"; exit 1; fi
+          done
           echo "ZIP size: $(wc -c < blog-deploy.zip) bytes"
 
       - name: Patch blog
