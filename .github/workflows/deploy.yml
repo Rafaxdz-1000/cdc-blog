@@ -314,6 +314,38 @@ jobs:
           _art_metas.sort(key=lambda a: a.get('date', ''), reverse=True)
           print('Dynamic rebuild: {} articles found'.format(len(_art_metas)))
 
+          # ── 11b. feed.json (JSON Feed 1.1) — consumido pela newsletter / integrações ──
+          _BLOGURL = 'https://blog.clubedoscisnes.com'
+          _feed_items = []
+          for _fa in _art_metas:
+              _fslug = _fa.get('slug', '')
+              if not _fslug: continue
+              _furl = '%s/%s/' % (_BLOGURL, _fslug)
+              _feed_items.append({
+                  'id': _furl,
+                  'url': _furl,
+                  'title': _fa.get('title', ''),
+                  'summary': _fa.get('description', ''),
+                  'image': '%s/%s/hero.jpg' % (_BLOGURL, _fslug),
+                  'date_published': _fa.get('date', ''),
+                  'tags': [_fa.get('category', 'IA')],
+                  'read_time': _fa.get('read_time', '5'),
+                  'badge_class': _fa.get('badge_class', 'badge-ia'),
+              })
+          _feed = {
+              'version': 'https://jsonfeed.org/version/1.1',
+              'title': 'Blog Clube dos Cisnes',
+              'home_page_url': _BLOGURL + '/',
+              'feed_url': _BLOGURL + '/feed.json',
+              'language': 'pt-BR',
+              'description': 'IA, automação e marketing digital para negócios.',
+              'items': _feed_items,
+          }
+          with open('extracted/feed.json', 'w', encoding='utf-8') as _ff:
+              _json.dump(_feed, _ff, ensure_ascii=False)
+          print('[feed.json] %d items' % len(_feed_items))
+          changes.append('feed.json:%d' % len(_feed_items))
+
           if len(_art_metas) >= 8:
               def _e(s):
                   return str(s).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;').replace('"','&quot;')
@@ -758,6 +790,17 @@ jobs:
                   _nlg += 1
           print('[S19] logo->blog: home=%s artigos=%d' % (_clg, _nlg))
           changes.append('logo-home-arts:%d' % _nlg)
+
+          # ── 20. Newsletter signup — injeta form na home (idempotente) ─────────
+          try:
+              with open('assets/newsletter-signup.html', 'r', encoding='utf-8') as _nlf:
+                  _NLSIGNUP = _nlf.read()
+          except Exception:
+              _NLSIGNUP = ''
+          if _NLSIGNUP and 'id="cdc-nl-signup"' not in html and '</body>' in html:
+              html = html.replace('</body>', _NLSIGNUP + '\n</body>', 1)
+              changes.append('nl-signup')
+
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
@@ -806,6 +849,13 @@ jobs:
             ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
             "cd ${BLOG_ROOT} && mv vps-robots.txt robots.txt && mv vps-sitemap.xml sitemap.xml && echo ok"
           echo "✓ robots.txt + sitemap.xml → VPS:${BLOG_ROOT}/"
+          # Push feed.json to VPS (newsletter / integrações)
+          unzip -p blog-deploy.zip feed.json > /tmp/vps-feed.json 2>/dev/null || true
+          if [ -s /tmp/vps-feed.json ]; then
+            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
+              scp -o StrictHostKeyChecking=no /tmp/vps-feed.json "root@69.62.99.164:${BLOG_ROOT}/feed.json" \
+              && echo "✓ feed.json → VPS:${BLOG_ROOT}/"
+          fi
           # Sync patched article HTML to VPS (only */index.html, never deletes) — resiliente
           rm -rf art-sync && mkdir -p art-sync
           unzip -o blog-deploy.zip "*/index.html" -d art-sync > /dev/null 2>&1 || true
@@ -882,4 +932,5 @@ jobs:
             ssh -o StrictHostKeyChecking=no \
             root@69.62.99.164 \
             "rm -f /opt/blog/.pending-deploy && echo 'google.com, pub-4015828754517117, DIRECT, f08c47fec0942fa0' > /opt/blog/ads.txt && chmod 644 /opt/blog/ads.txt && echo flag_cleared_and_ads_txt_ok"
+
 
