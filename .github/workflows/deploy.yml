@@ -860,6 +860,30 @@ jobs:
                   _np21 += 1
           print('[S21] privacy page criada + link repontado em home + %d artigos' % _np21)
           changes.append('privacy-link:%d' % _np21)
+
+          # ── 22. Newsletter wiring — liga os forms nativos ao subscribe + nome/celular ──
+          try:
+              with open('assets/newsletter-wire.js', 'r', encoding='utf-8') as _wjs: _NLWIRE = _wjs.read()
+          except Exception:
+              _NLWIRE = ''
+          if _NLWIRE:
+              if 'id="cdc-nl-wire"' not in html and '</body>' in html:
+                  html = html.replace('</body>', '<script id="cdc-nl-wire">' + _NLWIRE + '</script>\n</body>', 1)
+                  changes.append('nl-wire-home')
+              _nlw22 = 0
+              for _dn22 in sorted(os.listdir('extracted')):
+                  _dp22 = os.path.join('extracted', _dn22)
+                  if not os.path.isdir(_dp22): continue
+                  _ap22 = os.path.join(_dp22, 'index.html')
+                  if not os.path.exists(_ap22): continue
+                  with open(_ap22, 'r', encoding='utf-8') as _f22: _ah22 = _f22.read()
+                  if 'id="cdc-nl-wire"' in _ah22 or '</body>' not in _ah22: continue
+                  _ah22 = _ah22.replace('</body>', '<script id="cdc-nl-wire">' + _NLWIRE + '</script>\n</body>', 1)
+                  with open(_ap22, 'w', encoding='utf-8') as _f22: _f22.write(_ah22)
+                  _nlw22 += 1
+              print('[S22] newsletter wiring: home + %d artigos' % _nlw22)
+              changes.append('nl-wire-arts:%d' % _nlw22)
+
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
