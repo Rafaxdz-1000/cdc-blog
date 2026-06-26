@@ -794,15 +794,24 @@ jobs:
           print('[S19] logo->blog: home=%s artigos=%d' % (_clg, _nlg))
           changes.append('logo-home-arts:%d' % _nlg)
 
-          # ── 20. Newsletter signup — injeta form na home (idempotente) ─────────
-          try:
-              with open('assets/newsletter-signup.html', 'r', encoding='utf-8') as _nlf:
-                  _NLSIGNUP = _nlf.read()
-          except Exception:
-              _NLSIGNUP = ''
-          if _NLSIGNUP and 'id="cdc-nl-signup"' not in html and '</body>' in html:
-              html = html.replace('</body>', _NLSIGNUP + '\n</body>', 1)
-              changes.append('nl-signup')
+          # ── 20. Newsletter signup — REMOVIDO: strip do form quebrado (home+artigos) ─────────
+          _nl_re = re.compile(r'<section\b[^>]*id=["\x27]cdc-nl-signup["\x27][\s\S]*?</section>\s*', re.IGNORECASE)
+          html, _nl_n = _nl_re.subn('', html)
+          if _nl_n:
+              changes.append('nl-strip-home:%d' % _nl_n)
+          _nl_arts = 0
+          for _dn20 in sorted(os.listdir('extracted')):
+              _dp20 = os.path.join('extracted', _dn20)
+              if not os.path.isdir(_dp20): continue
+              _ap20 = os.path.join(_dp20, 'index.html')
+              if not os.path.exists(_ap20): continue
+              with open(_ap20, 'r', encoding='utf-8') as _f20: _a20 = _f20.read()
+              _a20b, _c20 = _nl_re.subn('', _a20)
+              if _c20:
+                  with open(_ap20, 'w', encoding='utf-8') as _f20: _f20.write(_a20b)
+                  _nl_arts += 1
+          print('[S20] newsletter signup REMOVIDO: home=%d artigos=%d' % (_nl_n, _nl_arts))
+          changes.append('nl-strip-arts:%d' % _nl_arts)
 
 
           # ── 20. Migração de domínio (catch-all): blog.clubedoscisnes.com → blogclubedoscisnes.com ──
