@@ -884,20 +884,26 @@ jobs:
               print('[S22] newsletter wiring: home + %d artigos' % _nlw22)
               changes.append('nl-wire-arts:%d' % _nlw22)
 
-          # ── 22. Sincronizar menu Solucoes do header com as novas solucoes de IA (clona anchor GMB) ──
-          _NEW22 = [('sistemas-agenticos', 'Sistemas Agenticos', '08'), ('looping-de-reflexao', 'Looping de Reflexao', '09'), ('looping-de-melhoria-continua', 'Looping de Melhoria Continua', '10'), ('looping-com-humano', 'Looping com Humano', '11')]
+          # ── 22. Sincronizar menu Solucoes do header com as novas solucoes de IA (strip+reinjeta, numeracao dinamica) ──
+          _NEW22 = ['sistemas-agenticos', 'looping-de-reflexao', 'looping-de-melhoria-continua', 'looping-com-humano']
+          _NAMES22 = {'sistemas-agenticos': 'Sistemas Agenticos', 'looping-de-reflexao': 'Looping de Reflexao', 'looping-de-melhoria-continua': 'Looping de Melhoria Continua', 'looping-com-humano': 'Looping com Humano'}
           _gmb22 = re.compile(r'<a\b[^>]*href="[^"]*solucoes/google-meu-negocio/"[\s\S]*?</a>')
+          _strip22 = re.compile(r'<a\b[^>]*href="[^"]*solucoes/(?:' + '|'.join(_NEW22) + r')/"[^>]*flex items-center[\s\S]*?</a>\n?')
           def _inject_menus22(_h):
-              if re.search(r'sistemas-agenticos/"[^>]*flex items-center', _h): return _h, 0
+              _h = _strip22.sub('', _h)
               _hits = []
               for _m in _gmb22.finditer(_h):
                   _a = _m.group(0); _ot = _a[:_a.find('>') + 1]
                   if 'flex items-center' not in _ot or 'glass-card' in _ot: continue
                   _hits.append((_m.end(), _a))
               for _end, _a in reversed(_hits):
+                  _nm = re.search(r'>(\d+)</span>', _a)
+                  _base = int(_nm.group(1)) if _nm else 0
                   _clones = []
-                  for _slug, _name, _num in _NEW22:
-                      _clones.append(_a.replace('google-meu-negocio', _slug).replace('Google Meu Negocio', _name).replace('>07</span>', '>' + _num + '</span>'))
+                  for _i, _slug in enumerate(_NEW22):
+                      _c = _a.replace('google-meu-negocio', _slug).replace('Google Meu Negocio', _NAMES22[_slug])
+                      if _nm: _c = _c.replace('>' + _nm.group(1) + '</span>', '>%02d</span>' % (_base + _i + 1), 1)
+                      _clones.append(_c)
                   _h = _h[:_end] + '\n' + '\n'.join(_clones) + _h[_end:]
               return _h, len(_hits)
           html, _nmenu22 = _inject_menus22(html)
