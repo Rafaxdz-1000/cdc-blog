@@ -922,6 +922,31 @@ jobs:
           print('[S22] menu Solucoes sync: home_anchors=%d artigos=%d' % (_nmenu22, _nmenu22_arts))
           changes.append('menu-sync-arts:%d' % _nmenu22_arts)
 
+          # ── 23. Aba LOJA no header do blog (clona anchor de Pacotes -> Loja; home + artigos) ──
+          _pac23 = re.compile(r'<a\b[^>]*href="[^"]*/pacotes/"[^>]*>Pacotes</a>')
+          def _inject_loja23(_h):
+              if 'href="https://clubedoscisnes.com/loja/"' in _h or 'href="/loja/"' in _h: return _h, 0
+              _hits = [(_m.start(), _m.group(0)) for _m in _pac23.finditer(_h)]
+              for _start, _a in reversed(_hits):
+                  _loja = _a.replace('/pacotes/', '/loja/').replace('>Pacotes<', '>Loja<')
+                  _h = _h[:_start] + _loja + '\n' + _h[_start:]
+              return _h, len(_hits)
+          html, _nloja23 = _inject_loja23(html)
+          if _nloja23: changes.append('loja-tab-home:%d' % _nloja23)
+          _nloja23_arts = 0
+          for _dn23 in sorted(os.listdir('extracted')):
+              _dp23 = os.path.join('extracted', _dn23)
+              if not os.path.isdir(_dp23): continue
+              _ap23 = os.path.join(_dp23, 'index.html')
+              if not os.path.exists(_ap23): continue
+              with open(_ap23, 'r', encoding='utf-8') as _f23: _a23 = _f23.read()
+              _a23b, _c23 = _inject_loja23(_a23)
+              if _c23:
+                  with open(_ap23, 'w', encoding='utf-8') as _f23: _f23.write(_a23b)
+                  _nloja23_arts += 1
+          print('[S23] aba Loja: home_anchors=%d artigos=%d' % (_nloja23, _nloja23_arts))
+          changes.append('loja-tab-arts:%d' % _nloja23_arts)
+
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
