@@ -14,13 +14,20 @@ jobs:
       - name: Checkout repo (for assets)
         uses: actions/checkout@v4
 
-      - name: Install sshpass
-        run: sudo apt-get install -y sshpass
+      - name: Setup SSH key (VPS)
+        # O sshd da VPS so aceita chave desde o hardening de 2026-08-02
+        # (/etc/ssh/sshd_config.d/01-cdc-hardening.conf: PasswordAuthentication no).
+        # A chave dedicada deste CI esta no authorized_keys do root com a opcao `restrict`.
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_ci
+          chmod 600 ~/.ssh/vps_ci
+          ssh-keygen -lf ~/.ssh/vps_ci
 
       - name: Download blog-deploy.zip from VPS
         run: |
           for i in 1 2 3 4 5; do
-            if sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no -o ConnectTimeout=40 root@69.62.99.164:/opt/blog/blog-deploy.zip ./blog-deploy.zip; then
+            if scp -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o ConnectTimeout=40 root@69.62.99.164:/opt/blog/blog-deploy.zip ./blog-deploy.zip; then
               echo "download OK (tentativa $i)"; break
             fi
             echo "download tentativa $i falhou; aguardando..."; sleep 10
@@ -969,8 +976,8 @@ jobs:
           echo "Patched HTML size: $(wc -c < patched-index.html) bytes"
 
           # Detect nginx docroot for blogclubedoscisnes.com dynamically
-          BLOG_ROOT=$(sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+          BLOG_ROOT=$(\
+            ssh -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no root@69.62.99.164 \
             "nginx -T 2>/dev/null | awk 'BEGIN{f=0} /blog\\.clubedoscisnes\\.com/{f=1} f && /[[:space:]]root /{gsub(/;/,\"\",\$2); print \$2; exit}'" 2>/dev/null || echo "")
 
           if [ -z "$BLOG_ROOT" ]; then
@@ -980,26 +987,26 @@ jobs:
           echo "VPS nginx root: $BLOG_ROOT"
 
           # Copy patched index.html to VPS
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            scp -o StrictHostKeyChecking=no \
+          \
+            scp -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no \
             patched-index.html "root@69.62.99.164:${BLOG_ROOT}/index.html"
           echo "✓ Patched index.html → VPS:${BLOG_ROOT}/index.html"
           # Push robots.txt + sitemap.xml to VPS
           unzip -p blog-deploy.zip robots.txt > /tmp/vps-robots.txt 2>/dev/null || echo -e "User-agent: *\nAllow: /" > /tmp/vps-robots.txt
           unzip -p blog-deploy.zip sitemap.xml > /tmp/vps-sitemap.xml 2>/dev/null || true
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            scp -o StrictHostKeyChecking=no \
+          \
+            scp -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no \
             /tmp/vps-robots.txt /tmp/vps-sitemap.xml \
             "root@69.62.99.164:${BLOG_ROOT}/"
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            ssh -o StrictHostKeyChecking=no root@69.62.99.164 \
+          \
+            ssh -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no root@69.62.99.164 \
             "cd ${BLOG_ROOT} && mv vps-robots.txt robots.txt && mv vps-sitemap.xml sitemap.xml && echo ok"
           echo "✓ robots.txt + sitemap.xml → VPS:${BLOG_ROOT}/"
           # Push feed.json to VPS (newsletter / integrações)
           unzip -p blog-deploy.zip feed.json > /tmp/vps-feed.json 2>/dev/null || true
           if [ -s /tmp/vps-feed.json ]; then
-            sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-              scp -o StrictHostKeyChecking=no /tmp/vps-feed.json "root@69.62.99.164:${BLOG_ROOT}/feed.json" \
+            \
+              scp -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no /tmp/vps-feed.json "root@69.62.99.164:${BLOG_ROOT}/feed.json" \
               && echo "✓ feed.json → VPS:${BLOG_ROOT}/"
           fi
           # Sync patched article HTML to VPS (only */index.html, never deletes) — resiliente
@@ -1010,8 +1017,8 @@ jobs:
             tar -czf art-sync.tgz -C art-sync .
             SYNC_OK=0
             for i in 1 2 3; do
-              if sshpass -p "${{ secrets.VPS_PASSWORD }}" scp -o StrictHostKeyChecking=no -o ConnectTimeout=40 art-sync.tgz "root@69.62.99.164:/tmp/art-sync.tgz" && \
-                 sshpass -p "${{ secrets.VPS_PASSWORD }}" ssh -o StrictHostKeyChecking=no -o ConnectTimeout=40 root@69.62.99.164 "test -s /tmp/art-sync.tgz && tar -xzf /tmp/art-sync.tgz -C ${BLOG_ROOT} && rm -f /tmp/art-sync.tgz"; then
+              if scp -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o ConnectTimeout=40 art-sync.tgz "root@69.62.99.164:/tmp/art-sync.tgz" && \
+                 ssh -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o ConnectTimeout=40 root@69.62.99.164 "test -s /tmp/art-sync.tgz && tar -xzf /tmp/art-sync.tgz -C ${BLOG_ROOT} && rm -f /tmp/art-sync.tgz"; then
                 SYNC_OK=1; break
               fi
               echo "art-sync tentativa $i falhou; aguardando..."; sleep 8
@@ -1075,8 +1082,8 @@ jobs:
       - name: Clear pending flag on VPS + ensure ads.txt
         if: success()
         run: |
-          sshpass -p "${{ secrets.VPS_PASSWORD }}" \
-            ssh -o StrictHostKeyChecking=no \
+          \
+            ssh -i ~/.ssh/vps_ci -o IdentitiesOnly=yes -o StrictHostKeyChecking=no \
             root@69.62.99.164 \
             "rm -f /opt/blog/.pending-deploy && echo 'google.com, pub-4015828754517117, DIRECT, f08c47fec0942fa0' > /opt/blog/ads.txt && chmod 644 /opt/blog/ads.txt && echo flag_cleared_and_ads_txt_ok"
 
