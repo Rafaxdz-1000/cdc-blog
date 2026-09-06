@@ -61,6 +61,10 @@ jobs:
               html = f.read()
 
           changes = []
+          # Ancoras que nao casaram. Um patcher que erra a ancora hoje termina
+          # VERDE e publica o HTML sem a correcao, sem sintoma nenhum. Esta lista
+          # e lida por um step posterior que reprova o job.
+          _anchor_fail = []
 
           # ── 1. Favicon ───────────────────────────────────────────────────────
           if 'favicon.ico' not in html:
@@ -449,6 +453,10 @@ jobs:
 
           # ── 12. Ad containers (idempotent: strip existing, re-inject) ───────────
           AD_CLIENT = 'ca-pub-4015828754517117'
+          # Slots vazios = anuncios DESLIGADOS. O strip acima remove os blocos
+          # existentes e as guardas abaixo impedem a reinjecao, entao nada de
+          # "Publicidade"/"Anuncio em breve" vai para o ar. Para religar, basta
+          # preencher os ids aqui: o restante do fluxo ja esta pronto.
           AD_SLOT_H1 = ''
           AD_SLOT_H2 = ''
           AD_SLOT_IF = ''
@@ -506,7 +514,7 @@ jobs:
 
           print('[S12] INJECTING ads')
           ad_hits = []
-          ml_idx = html.find('MAIS LIDAS')
+          ml_idx = html.find('MAIS LIDAS') if AD_SLOT_H1 else -1
           print('[S12] ml_idx=%d' % ml_idx)
           if ml_idx > -1:
               sec1 = html.rfind('<section', 0, ml_idx)
@@ -514,7 +522,7 @@ jobs:
               if sec1 > -1:
                   html = html[:sec1] + _adblock(AD_SLOT_H1, first=True) + '\n' + html[sec1:]
                   ad_hits.append('ad1-before-mais-lidas')
-          ws_idx = html.find('Webstories')
+          ws_idx = html.find('Webstories') if AD_SLOT_H2 else -1
           print('[S12] ws_idx=%d' % ws_idx)
           if ws_idx > -1:
               sec2 = html.rfind('<section', 0, ws_idx)
@@ -523,7 +531,7 @@ jobs:
                   html = html[:sec2] + _adblock(AD_SLOT_H2) + '\n' + html[sec2:]
                   ad_hits.append('ad2-before-webstories')
           # ad3: find sidebar-widget div containing Redes Sociais, insert after its closing </div>
-          rs_idx = html.lower().find('redes sociais')
+          rs_idx = html.lower().find('redes sociais') if AD_SLOT_IF else -1
           if rs_idx > -1:
               sw_cls = html.rfind('sidebar-widget', 0, rs_idx)
               if sw_cls > -1:
@@ -556,7 +564,7 @@ jobs:
               print('[S12] Redes Sociais not found — fallback to grid')
               grid_m = re.search(
                   r'<div[^>]+class=\"[^\"]*grid[^\"]*grid-cols-1 sm:grid-cols-2[^\"]*\"[^>]*>', html)
-              if grid_m:
+              if grid_m and AD_SLOT_IF:
                   pos3 = grid_m.end()
                   count = 0
                   while count < 4:
@@ -954,10 +962,227 @@ jobs:
           print('[S23] aba Loja: home_anchors=%d artigos=%d' % (_nloja23, _nloja23_arts))
           changes.append('loja-tab-arts:%d' % _nloja23_arts)
 
+          # ── 24. Rotulo da secao: "Mais Lidas" -> "Mais Recentes" ──────────
+          # A secao SEMPRE mostrou os 5 artigos mais recentes: _art_metas e
+          # ordenado por date (secao 11) e _nm usa _art_metas[0..4]. Nao existe
+          # nenhuma leitura de audiencia no caminho. O rotulo passa a dizer o que
+          # a secao faz. Ranking real por pageviews e projeto separado, e depende
+          # de exclusao de trafego interno no GA4, que hoje nao existe.
+          _eyebrow_de = '<span class="accent-line"></span>Mais Lidas</p>'
+          _eyebrow_para = '<span class="accent-line"></span>Mais Recentes</p>'
+          _n_eyebrow = html.count(_eyebrow_de)
+          if _n_eyebrow:
+              html = html.replace(_eyebrow_de, _eyebrow_para)
+              changes.append('rotulo-mais-recentes:%d' % _n_eyebrow)
+          elif _eyebrow_para not in html:
+              _anchor_fail.append('24-rotulo-mais-lidas')
+          print('[S24] eyebrow trocado=%d' % _n_eyebrow)
+
+          # ── 25. Faixa de Videos: so horizontais, nunca Shorts ─────────────
+          # Montagem no servidor. O RSS nao diz o formato, entao a proporcao vem de
+          # frame0.jpg (o primeiro quadro, na proporcao ORIGINAL): altura > largura
+          # e Short. maxresdefault nao serve (1280x720 para ambos) e oEmbed tambem
+          # nao (200x113 para ambos). frame0 e SONDA, nunca miniatura exibida: ele
+          # traz a UI do player desenhada por cima.
+          import urllib.request as _u, struct as _st
+
+          _YT_CH = 'UCFEv58QJTZ0kWbNtU4YFqBg'
+
+          def _jpeg_wh(_b):
+              # Le largura/altura no marcador SOF, sem depender de biblioteca.
+              _i = 2
+              while _i < len(_b) - 9:
+                  if _b[_i] != 0xFF:
+                      _i += 1; continue
+                  _mk = _b[_i + 1]
+                  if _mk in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                             0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                      _h, _w = _st.unpack('>HH', _b[_i + 5:_i + 9])
+                      return _w, _h
+                  _i += 2 + _st.unpack('>H', _b[_i + 2:_i + 4])[0]
+              return 0, 0
+
+          def _get(_url, _to=20):
+              _rq = _u.Request(_url, headers={'User-Agent': 'cdc-blog-ci/1.0'})
+              return _u.urlopen(_rq, timeout=_to).read()
+
+          _vid_cards = []
+          _vid_erro = ''
+          try:
+              _rss = _get('https://www.youtube.com/feeds/videos.xml?channel_id=' + _YT_CH, 25).decode('utf-8', 'replace')
+              # Campo a campo: dentro de <entry> a ordem e id, yt:videoId, title,
+              # link, author, published, updated, media:group/media:title. Um regex
+              # unico encadeado depende dessa ordem e casaria zero se ela mudar.
+              _entries = []
+              for _em in re.finditer(r'<entry>(.*?)</entry>', _rss, re.DOTALL):
+                  _eb = _em.group(1)
+                  _vm = re.search(r'<yt:videoId>([^<]+)</yt:videoId>', _eb)
+                  if not _vm: continue
+                  _tm = re.search(r'<title>([^<]*)</title>', _eb)
+                  _pm = re.search(r'<published>([^<]+)</published>', _eb)
+                  _entries.append((_vm.group(1),
+                                   _tm.group(1) if _tm else '',
+                                   _pm.group(1) if _pm else ''))
+              print('[S25] entries no RSS: %d' % len(_entries))
+              if not _entries:
+                  _anchor_fail.append('25-rss-vazio')
+              _MES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez']
+              for _vid, _vt, _vpub in _entries:
+                  try:
+                      _fb = _get('https://i.ytimg.com/vi/%s/frame0.jpg' % _vid, 20)
+                  except Exception as _e:
+                      print('[S25] %s: frame0 falhou (%s), descartado' % (_vid, _e))
+                      continue
+                  _w, _h = _jpeg_wh(_fb)
+                  if not _w or not _h:
+                      print('[S25] %s: frame0 sem SOF legivel, descartado' % _vid)
+                      continue
+                  if _h >= _w:
+                      print('[S25] %s: %dx%d SHORT, fora' % (_vid, _w, _h))
+                      continue
+                  print('[S25] %s: %dx%d horizontal, entra' % (_vid, _w, _h))
+                  try:
+                      _d = _vpub[:10].split('-')
+                      _dt = '%s de %s. de %s' % (_d[2], _MES[int(_d[1]) - 1], _d[0])
+                  except Exception:
+                      _dt = ''
+                  # O titulo vem do XML ja escapado. Desescapa e reescapa, senao
+                  # um "&" viraria "&amp;amp;" na pagina.
+                  _raw = (_vt.replace('&lt;', '<').replace('&gt;', '>')
+                             .replace('&quot;', '"').replace('&#39;', "'")
+                             .replace('&amp;', '&'))
+                  _t = (_raw.replace('&', '&amp;').replace('<', '&lt;')
+                            .replace('>', '&gt;').replace('"', '&quot;'))
+                  _vid_cards.append(
+                      '<div class="vid-card snap-start shrink-0" style="width:240px;">'
+                      '<a href="https://www.youtube.com/watch?v=' + _vid + '" target="_blank" rel="noopener" class="group block">'
+                      '<div class="relative overflow-hidden rounded-sm mb-3" style="height:135px;background:#0a0f1e;">'
+                      '<img src="https://i.ytimg.com/vi/' + _vid + '/hqdefault.jpg" alt="' + _t + '"'
+                      ' class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" decoding="async">'
+                      '<div class="absolute top-2 left-2 bg-[#2563EB] text-white text-[9px] font-bold px-1.5 py-0.5 font-mono tracking-wider">CDC</div>'
+                      '<div class="absolute inset-0 flex items-center justify-center">'
+                      '<div class="w-10 h-10 rounded-full bg-black/60 border border-white/20 flex items-center justify-center'
+                      ' group-hover:bg-[#2563EB]/80 group-hover:border-[#2563EB]/50 transition-all duration-300">'
+                      '<svg class="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>'
+                      '</div></div></div>'
+                      '<p class="text-neutral-300 text-xs leading-snug group-hover:text-white transition-colors line-clamp-2">' + _t + '</p>'
+                      '<p class="text-neutral-700 text-[10px] font-mono mt-1.5">' + _dt + '</p>'
+                      '</a></div>')
+          except Exception as _e:
+              _vid_erro = str(_e)
+              print('[S25] RSS/YouTube indisponivel (%s): faixa de video fica como esta' % _vid_erro)
+
+          # So mexe no HTML se conseguiu montar cards. Falha do YouTube nao pode
+          # derrubar o step nem esvaziar a faixa: degrada mantendo o que ja existe.
+          if _vid_cards:
+              _vt_m = re.search(r'<div id="vid-track"[^>]*>', html)
+              _vt_end = html.find('</div><!-- /vid-track -->')
+              if _vt_m and _vt_end > _vt_m.end():
+                  html = html[:_vt_m.end()] + '\n' + '\n'.join(_vid_cards) + '\n      ' + html[_vt_end:]
+                  changes.append('videos-horizontais:%d' % len(_vid_cards))
+                  print('[S25] %d cards escritos no vid-track' % len(_vid_cards))
+              else:
+                  _anchor_fail.append('25-vid-track')
+                  print('[S25] ANCORA vid-track nao encontrada')
+
+              # Remove o loader que dependia do rss2json. Junto sai o catch que
+              # ESCONDIA a secao inteira quando o terceiro falhava. vidScroll fica.
+              _ld_ini = html.find('/* YouTube dynamic loader')
+              if _ld_ini > -1:
+                  _ld_fim = html.find('\n})();', _ld_ini)
+                  if _ld_fim > -1:
+                      html = (html[:_ld_ini]
+                              + '/* Faixa de videos montada no build (so horizontais). Sem fonte externa em runtime. */'
+                              + html[_ld_fim + len('\n})();'):])
+                      changes.append('loader-rss2json-removido')
+                      print('[S25] loader rss2json removido')
+                  else:
+                      _anchor_fail.append('25-loader-fim')
+              else:
+                  print('[S25] loader rss2json ja nao estava presente')
+          else:
+              print('[S25] nenhum card horizontal montado, HTML intocado')
+
+          # ── 26. Webstories: mesma data, um mes atras ──────────────────────
+          # data-date sai de _art_metas (slug -> datePublished), ja montado na
+          # secao 11. A janela e decidida no navegador, contra o hoje do visitante:
+          # o deploy nao tem schedule, entao janela calculada no build congelaria.
+          _slug_date = {}
+          for _a in _art_metas:
+              _d = (_a.get('date') or '')[:10]
+              if len(_d) == 10:
+                  _slug_date[_a['slug']] = _d
+
+          _ws_n = [0]
+
+          def _ws_stamp(_m):
+              _slug = _m.group(1)
+              _d = _slug_date.get(_slug)
+              if not _d:
+                  return _m.group(0)
+              _ws_n[0] += 1
+              return '<a href="/' + _slug + '/" data-date="' + _d + '" class="ws-card'
+
+          html, _ws_sub = re.subn(r'<a href="/([^"/]+)/" class="ws-card', _ws_stamp, html)
+          print('[S26] ws-cards vistos=%d, com data=%d' % (_ws_sub, _ws_n[0]))
+          if _ws_sub == 0:
+              _anchor_fail.append('26-ws-card')
+          else:
+              changes.append('ws-data-date:%d' % _ws_n[0])
+
+          _ws_js = (
+              '<script>'
+              '/* Webstories: mesma data, um mes atras. Fallback escalonado para a faixa'
+              ' nunca ficar vazia, com o rotulo acompanhando o que esta sendo mostrado.'
+              ' Cards fora da janela sao ESCONDIDOS, nunca removidos: eles sao a porta'
+              ' de entrada da home para a maior parte do acervo. */'
+              '(function(){'
+              'var t=document.getElementById("ws-track");if(!t)return;'
+              'var cards=t.querySelectorAll("a.ws-card");if(!cards.length)return;'
+              'var comData=0,i;'
+              'for(i=0;i<cards.length;i++){if(cards[i].getAttribute("data-date"))comData++;}'
+              'if(!comData)return;'  # sem data-date: nao faz nada, faixa segue como hoje
+              'var MIN=6;'
+              'var hoje=new Date();hoje.setHours(0,0,0,0);'
+              'var alvo=new Date(hoje.getFullYear(),hoje.getMonth()-1,hoje.getDate());'
+              'function dias(c){var v=c.getAttribute("data-date");if(!v)return null;'
+              'var p=v.split("-");if(p.length!==3)return null;'
+              'var d=new Date(+p[0],+p[1]-1,+p[2]);if(isNaN(d))return null;'
+              'return Math.round((d-alvo)/86400000);}'
+              'function aplica(tol){var n=0;for(var i=0;i<cards.length;i++){'
+              'var dd=dias(cards[i]);var ok=dd!==null&&Math.abs(dd)<=tol;'
+              'cards[i].hidden=!ok;if(ok)n++;}return n;}'
+              'var rotulo=null,n=aplica(0);'
+              'if(n<MIN){n=aplica(3);rotulo=n>=MIN?"Webstories · semana de um mês atrás":null;}'
+              'if(n<MIN){n=aplica(7);rotulo=n>=MIN?"Webstories · quinzena de um mês atrás":null;}'
+              'if(n<MIN){for(var j=0;j<cards.length;j++){cards[j].hidden=false;}rotulo="Destaques";}'
+              'if(rotulo){var sec=t.parentNode;while(sec&&sec.tagName!=="SECTION"){sec=sec.parentNode;}'
+              'var h=sec&&sec.querySelector("h2");'
+              'if(h&&h.firstChild&&h.firstChild.nodeType===3){h.firstChild.nodeValue=rotulo;}}'
+              '})();'
+              '</script>'
+          )
+
+          # strip-and-reinject idempotente
+          html = re.sub(r'<script>/\* Webstories: mesma data.*?</script>', '', html, flags=re.DOTALL)
+          _ws_end = html.find('</div><!-- /ws-track -->')
+          if _ws_end > -1:
+              _ws_close = _ws_end + len('</div><!-- /ws-track -->')
+              html = html[:_ws_close] + '\n' + _ws_js + html[_ws_close:]
+              changes.append('ws-janela-mes')
+              print('[S26] script de janela injetado')
+          else:
+              _anchor_fail.append('26-ws-track-fim')
+              print('[S26] ANCORA /ws-track nao encontrada')
+
           # ── Write + repack ───────────────────────────────────────────────────
           with open(idx_path, 'w', encoding='utf-8') as f:
               f.write(html)
           print('Patches applied:', ', '.join(changes))
+          if _anchor_fail:
+              print('::warning::ancoras que nao casaram: %s' % ', '.join(_anchor_fail))
+          with open('anchor-fail.txt', 'w', encoding='utf-8') as _af:
+              _af.write('\n'.join(_anchor_fail))
 
           os.remove('blog-deploy.zip')
           with zipfile.ZipFile('blog-deploy.zip', 'w', zipfile.ZIP_DEFLATED) as z:
@@ -1088,3 +1313,21 @@ jobs:
             "rm -f /opt/blog/.pending-deploy && echo 'google.com, pub-4015828754517117, DIRECT, f08c47fec0942fa0' > /opt/blog/ads.txt && chmod 644 /opt/blog/ads.txt && echo flag_cleared_and_ads_txt_ok"
 
 
+
+      - name: Verify patch anchors
+        # Roda DEPOIS do push e do deploy, de proposito: se uma ancora nao casar,
+        # as outras correcoes ainda vao para o ar, mas o job fica VERMELHO em vez
+        # de verde-e-errado. Um patcher de substituicao de string que erra a ancora
+        # e um no-op silencioso: publica o HTML sem a correcao e nao deixa sintoma.
+        if: always()
+        run: |
+          if [ ! -f anchor-fail.txt ]; then
+            echo "::error::anchor-fail.txt nao existe — o step 'Patch blog' nao chegou ao fim"
+            exit 1
+          fi
+          if [ -s anchor-fail.txt ]; then
+            echo "::error::ancoras que nao casaram no patcher:"
+            sed 's/^/  - /' anchor-fail.txt
+            exit 1
+          fi
+          echo "todas as ancoras casaram"
